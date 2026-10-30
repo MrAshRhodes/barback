@@ -1,0 +1,347 @@
+#!/usr/bin/env bash
+#
+# update_tap.sh - publish the Barback cask to the Homebrew tap repository.
+#
+# Usage:
+#   Scripts/update_tap.sh [--version X.Y.Z] [--sha256 HEX | --zip FILE | --from-release]
+#                         [--repo OWNER/NAME] [--branch NAME] [--dry-run] [--create]
+#                         [--skip-asset-check]
+#
+#   --version X.Y.Z       Release to publish. Default: the contents of VERSION.
+#   --sha256 HEX          SHA-256 of Barback-<version>.zip. Default: hash dist/Barback-<version>.zip
+#                         (or read dist/Barback-<version>.zip.sha256).
+#   --zip FILE            Hash this release zip instead.
+#   --from-release        Download the zip that is published on the GitHub release and hash that.
+#                         This is what releases should use: the cask must pin the published asset,
+#                         never a separately built copy, because every build differs byte for byte.
+#   --repo OWNER/NAME     Tap repository. Default: MrAshRhodes/homebrew-tap.
+#   --branch NAME         Branch to commit to. Default: the tap's default branch (main when new).
+#   --dry-run             Render dist/barback.rb, print it and diff it against the tap. Never
+#                         creates, commits or pushes anything.
+#   --create              Create the tap repository (public) when it does not exist yet.
+#   --skip-asset-check    Do not require the release zip to be downloadable before publishing.
+#   --allow-downgrade     Publish even when the tap already pins a newer version. Without it, an
+#                         older release (for example a re-run workflow) never replaces a newer cask.
+#
+# Authentication: TAP_GITHUB_TOKEN (a token that can push to the tap) is used when set,
+# otherwise the local `gh auth login` session. The tap is cloned into dist/tap-work/.
+
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+cd "$ROOT"
+
+DIST="$ROOT/dist"
+CASK_OUT="$DIST/barback.rb"
+WORK_PARENT="$DIST/tap-work"
+
+log() { printf '==> %s\n' "$*"; }
+warn() { printf 'warning: %s\n' "$*" >&2; }
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+usage() {
+  cat <<'EOF'
+Usage: Scripts/update_tap.sh [--version X.Y.Z] [--sha256 HEX | --zip FILE | --from-release]
+                             [--repo OWNER/NAME] [--branch NAME] [--dry-run] [--create]
+                             [--skip-asset-check]
+
+Publishes Casks/barback.rb (version + sha256) to the Homebrew tap and pushes it.
+
+  --version X.Y.Z       release to publish (default: contents of VERSION)
+  --sha256 HEX          SHA-256 of Barback-<version>.zip
+  --zip FILE            hash this release zip (default: dist/Barback-<version>.zip)
+  --from-release        download the zip published on the GitHub release and hash that
+                        (use this for releases: the cask must pin the published asset)
+  --repo OWNER/NAME     tap repository (default: MrAshRhodes/homebrew-tap)
+  --branch NAME         branch to commit to (default: the tap's default branch)
+  --dry-run             render + print the cask and diff it against the tap; change nothing
+  --create              create the public tap repository if it does not exist
+  --skip-asset-check    do not require the release zip to be downloadable first
+  --allow-downgrade     publish even if the tap already pins a newer version
+
+Authentication: TAP_GITHUB_TOKEN when set, otherwise the local `gh auth login` session.
+EOF
+}
+
+VERSION=""
+SHA256=""
+ZIP=""
+FROM_RELEASE=0
+REPO="MrAshRhodes/homebrew-tap"
+BRANCH=""
+DRY_RUN=0
+CREATE=0
+ASSET_CHECK=1
+ALLOW_DOWNGRADE=0
+
+while (($#)); do
+  case "$1" in
+    --version)
+      VERSION="${2:?--version needs a value}"
+      shift
+      ;;
+    --version=*) VERSION="${1#*=}" ;;
+    --sha256)
+      SHA256="${2:?--sha256 needs a value}"
+      shift
+      ;;
+    --sha256=*) SHA256="${1#*=}" ;;
+    --zip)
+      ZIP="${2:?--zip needs a value}"
+      shift
+      ;;
+    --zip=*) ZIP="${1#*=}" ;;
+    --from-release) FROM_RELEASE=1 ;;
+    --repo)
+      REPO="${2:?--repo needs a value}"
+      shift
+      ;;
+    --repo=*) REPO="${1#*=}" ;;
+    --branch)
+      BRANCH="${2:?--branch needs a value}"
+      shift
+      ;;
+    --branch=*) BRANCH="${1#*=}" ;;
+    --dry-run) DRY_RUN=1 ;;
+    --create) CREATE=1 ;;
+    --skip-asset-check) ASSET_CHECK=0 ;;
+    --allow-downgrade) ALLOW_DOWNGRADE=1 ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    *) die "unknown argument: $1 (see --help)" ;;
+  esac
+  shift
+done
+
+repo_re='^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'
+[[ $REPO =~ $repo_re ]] || die "invalid --repo '$REPO' (expected OWNER/NAME)"
+
+if [[ -z "$VERSION" ]]; then
+  [[ -f "$ROOT/VERSION" ]] || die "no --version given and VERSION file not found"
+  VERSION="$(tr -d '[:space:]' <"$ROOT/VERSION")"
+fi
+VERSION="${VERSION#v}"
+
+APP_REPO="MrAshRhodes/barback"
+
+if ((FROM_RELEASE)); then
+  [[ -z "$SHA256" && -z "$ZIP" ]] || die "--from-release cannot be combined with --sha256 or --zip"
+  RELEASE_TMP="$DIST/release-download"
+  rm -rf "$RELEASE_TMP"
+  mkdir -p "$RELEASE_TMP"
+  trap 'rm -rf "$RELEASE_TMP"' EXIT
+  zip_url="https://github.com/$APP_REPO/releases/download/v$VERSION/Barback-$VERSION.zip"
+  log "Downloading the published release zip: $zip_url"
+  curl -fsSL --retry 3 -o "$RELEASE_TMP/Barback-$VERSION.zip" "$zip_url" ||
+    die "could not download $zip_url (is the release published?)"
+  actual_sum="$(shasum -a 256 "$RELEASE_TMP/Barback-$VERSION.zip" | awk '{print $1}')"
+  if published_sum="$(curl -fsSL --retry 3 "$zip_url.sha256" 2>/dev/null)"; then
+    published_sum="$(awk '{print $1; exit}' <<<"$published_sum")"
+    [[ "$actual_sum" == "$published_sum" ]] ||
+      die "the downloaded zip ($actual_sum) does not match its published .sha256 ($published_sum)"
+  else
+    warn "no published .sha256 to cross-check; using the hash of the downloaded zip"
+  fi
+  ZIP="$RELEASE_TMP/Barback-$VERSION.zip"
+fi
+render_args=(--version "$VERSION" --output "$CASK_OUT")
+if [[ -n "$SHA256" && -n "$ZIP" ]]; then
+  die "pass either --sha256 or --zip, not both"
+elif [[ -n "$SHA256" ]]; then
+  render_args+=(--sha256 "$SHA256")
+elif [[ -n "$ZIP" ]]; then
+  render_args+=(--zip "$ZIP")
+elif [[ -f "$DIST/Barback-$VERSION.zip" ]]; then
+  render_args+=(--zip "$DIST/Barback-$VERSION.zip")
+elif [[ -f "$DIST/Barback-$VERSION.zip.sha256" ]]; then
+  render_args+=(--sha256 "$(cut -d' ' -f1 "$DIST/Barback-$VERSION.zip.sha256")")
+else
+  die "no release zip for $VERSION: pass --zip or --sha256, or run Scripts/package_release.sh first"
+fi
+
+if [[ -n "${TAP_GITHUB_TOKEN:-}" ]]; then
+  export GH_TOKEN="$TAP_GITHUB_TOKEN"
+fi
+export GIT_TERMINAL_PROMPT=0
+
+"$ROOT/Scripts/render_cask.sh" "${render_args[@]}"
+
+# Run git with credentials from gh, so TAP_GITHUB_TOKEN (via GH_TOKEN) or the local login is used.
+git_net() { git -c credential.helper= -c 'credential.helper=!gh auth git-credential' "$@"; }
+
+REPO_STATE=unknown
+REPO_ERR=""
+check_repo() {
+  REPO_STATE=unknown
+  REPO_ERR=""
+  if ! command -v gh >/dev/null 2>&1; then
+    REPO_ERR="the gh CLI is not installed"
+    return 0
+  fi
+  local out
+  if out="$(gh api "repos/$REPO" --silent 2>&1)"; then
+    REPO_STATE=exists
+  elif grep -q 'HTTP 404' <<<"$out"; then
+    REPO_STATE=missing
+  else
+    REPO_ERR="$out"
+  fi
+}
+
+# The cask downloads the release zip, so make sure that URL really serves it before the tap
+# points at it.
+asset_reachable() {
+  local url code attempt
+  url="$(sed -n 's/^  url "\(.*\)"$/\1/p' "$CASK_OUT" | head -n 1)"
+  url="${url//\#\{version\}/$VERSION}"
+  [[ -n "$url" ]] || return 1
+  for attempt in 1 2 3; do
+    code="$(curl -sL -r 0-0 -o /dev/null -w '%{http_code}' "$url" 2>/dev/null || true)"
+    if [[ "$code" == 200 || "$code" == 206 ]]; then
+      return 0
+    fi
+    ((attempt < 3)) && sleep 5
+  done
+  ASSET_URL="$url"
+  ASSET_CODE="$code"
+  return 1
+}
+ASSET_URL=""
+ASSET_CODE=""
+
+# Prints the version a cask file pins.
+cask_version() { sed -n 's/^  version "\(.*\)"$/\1/p' "$1" | head -n 1; }
+
+# True if version $1 is older than $2. Uses sort -V on the release part; for equal release parts a
+# pre-release (1.2.0-beta.1) is older than the release (1.2.0), as in Semantic Versioning.
+version_lt() {
+  local a="$1" b="$2" a_core="${1%%-*}" b_core="${2%%-*}"
+  [[ "$a" == "$b" ]] && return 1
+  if [[ "$a_core" != "$b_core" ]]; then
+    [[ "$(printf '%s\n%s\n' "$a_core" "$b_core" | sort -V | head -n 1)" == "$a_core" ]]
+    return
+  fi
+  [[ "$a" == *-* && "$b" != *-* ]] && return 0
+  [[ "$a" != *-* && "$b" == *-* ]] && return 1
+  [[ "$(printf '%s\n%s\n' "$a" "$b" | sort -V | head -n 1)" == "$a" ]]
+}
+
+if ((DRY_RUN)); then
+  log "Dry run: nothing will be created, committed or pushed"
+  printf -- '---- %s ----\n' "${CASK_OUT#"$ROOT"/}"
+  cat "$CASK_OUT"
+  printf -- '----\n'
+  if ((ASSET_CHECK)) && ! asset_reachable; then
+    warn "the release asset is not downloadable yet (HTTP ${ASSET_CODE:-?}): ${ASSET_URL:-unknown url}"
+  fi
+  check_repo
+  case "$REPO_STATE" in
+    exists)
+      if remote="$(gh api -H 'Accept: application/vnd.github.raw' "repos/$REPO/contents/Casks/barback.rb" 2>/dev/null)"; then
+        remote_version="$(cask_version <(printf '%s\n' "$remote"))"
+        if [[ -n "$remote_version" ]] && version_lt "$VERSION" "$remote_version" && ((!ALLOW_DOWNGRADE)); then
+          warn "$REPO already pins barback $remote_version, which is newer than $VERSION; a real run would not downgrade it (pass --allow-downgrade to force)"
+        fi
+        if diff -u --label "$REPO:Casks/barback.rb" --label "new:Casks/barback.rb" \
+          <(printf '%s\n' "$remote") "$CASK_OUT"; then
+          log "Casks/barback.rb in $REPO is already up to date"
+        else
+          log "A real run would commit the change above to $REPO"
+        fi
+      else
+        log "Casks/barback.rb does not exist in $REPO yet; a real run would add it"
+      fi
+      ;;
+    missing)
+      log "$REPO does not exist yet; a real run needs --create (or: gh repo create $REPO --public)"
+      ;;
+    *)
+      log "Could not query $REPO (${REPO_ERR:-unknown error}); skipped the comparison"
+      ;;
+  esac
+  exit 0
+fi
+
+if ((ASSET_CHECK)) && ! asset_reachable; then
+  die "the release asset is not downloadable (HTTP ${ASSET_CODE:-?}): ${ASSET_URL:-unknown url}
+publish the GitHub release first, or pass --skip-asset-check"
+fi
+
+check_repo
+case "$REPO_STATE" in
+  exists) ;;
+  missing)
+    ((CREATE)) || die "the tap repository $REPO does not exist; create it with 'gh repo create $REPO --public' or pass --create"
+    log "Creating public repository $REPO"
+    gh repo create "$REPO" --public --description "Homebrew tap for Barback"
+    ;;
+  *) die "could not query $REPO: ${REPO_ERR:-unknown error}" ;;
+esac
+
+WORK="$WORK_PARENT/${REPO#*/}"
+rm -rf "$WORK"
+mkdir -p "$WORK_PARENT"
+log "Cloning $REPO into ${WORK#"$ROOT"/}"
+git_net clone --quiet "https://github.com/$REPO.git" "$WORK"
+cd "$WORK"
+
+if git rev-parse --verify --quiet HEAD >/dev/null; then
+  current_branch="$(git symbolic-ref --short HEAD)"
+  BRANCH="${BRANCH:-$current_branch}"
+  if [[ "$BRANCH" != "$current_branch" ]]; then
+    if git rev-parse --verify --quiet "refs/remotes/origin/$BRANCH" >/dev/null; then
+      git checkout --quiet -B "$BRANCH" "origin/$BRANCH"
+    else
+      git checkout --quiet -B "$BRANCH"
+    fi
+  fi
+else
+  # A freshly created repository has no commits yet.
+  BRANCH="${BRANCH:-main}"
+  git symbolic-ref HEAD "refs/heads/$BRANCH"
+fi
+
+mkdir -p Casks
+if [[ -f Casks/barback.rb ]]; then
+  existing_version="$(cask_version Casks/barback.rb)"
+  if [[ -n "$existing_version" ]] && version_lt "$VERSION" "$existing_version"; then
+    if ((ALLOW_DOWNGRADE)); then
+      warn "downgrading the cask from $existing_version to $VERSION (--allow-downgrade)"
+    else
+      warn "$REPO already pins barback $existing_version, which is newer than $VERSION; not downgrading the cask (pass --allow-downgrade to force)"
+      exit 0
+    fi
+  fi
+fi
+cp "$CASK_OUT" Casks/barback.rb
+
+if [[ ! -f README.md ]]; then
+  owner_lc="$(printf '%s' "${REPO%%/*}" | tr '[:upper:]' '[:lower:]')"
+  tap_name="${owner_lc}/${REPO#*/homebrew-}"
+  cat >README.md <<EOF
+# ${REPO#*/}
+
+Homebrew tap for [Barback](https://github.com/MrAshRhodes/barback), a fast, open-source menu bar item hider for macOS.
+
+    brew install --cask ${tap_name}/barback
+
+The cask in this repository is updated by Barback's release workflow.
+EOF
+fi
+
+git add -A
+if git diff --cached --quiet; then
+  log "$REPO already has barback $VERSION; nothing to commit"
+  exit 0
+fi
+
+git config user.name >/dev/null || git config user.name "github-actions[bot]"
+git config user.email >/dev/null || git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+git -c commit.gpgsign=false commit --quiet -m "barback $VERSION"
+git_net push --quiet origin "HEAD:refs/heads/$BRANCH"
+log "Published barback $VERSION to $REPO ($BRANCH)"

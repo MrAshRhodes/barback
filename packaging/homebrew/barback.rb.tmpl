@@ -1,0 +1,45 @@
+cask "barback" do
+  version "{{VERSION}}"
+  sha256 "{{SHA256}}"
+
+  url "https://github.com/MrAshRhodes/barback/releases/download/v#{version}/Barback-#{version}.zip"
+  name "Barback"
+  desc "Fast, lightweight menu bar item hider"
+  homepage "https://github.com/MrAshRhodes/barback"
+
+  livecheck do
+    url :url
+    strategy :github_latest
+  end
+
+  depends_on macos: :sonoma
+
+  app "Barback.app"
+
+  # Barback is signed ad-hoc rather than notarized, so Gatekeeper would refuse to open a quarantined
+  # copy. Clearing the quarantine flag keeps `brew install --cask` a one-step install.
+  postflight_steps do
+    run "/usr/bin/xattr",
+        args:         ["-dr", "com.apple.quarantine", "{{appdir}}/Barback.app"],
+        must_succeed: false
+  end
+
+  # "Launch at login" uses SMAppService.mainApp; macOS drops that registration with the app bundle.
+  uninstall quit: "io.github.mrashrhodes.barback"
+
+  zap trash: [
+    "~/Library/Caches/io.github.mrashrhodes.barback",
+    "~/Library/HTTPStorages/io.github.mrashrhodes.barback",
+    "~/Library/Preferences/io.github.mrashrhodes.barback.plist",
+    "~/Library/Saved Application State/io.github.mrashrhodes.barback.savedState",
+  ]
+
+  caveats <<~EOS
+    Barback is signed ad-hoc and is not notarized by Apple.
+    It needs no Screen Recording or Accessibility permission.
+
+    To hide a menu bar item, hold Command (⌘) and drag it to the left of
+    Barback's separator, then click the Barback chevron (or press ⌃⌥⌘B)
+    to show or hide it. Option-click the chevron to reveal always-hidden items.
+  EOS
+end

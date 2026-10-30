@@ -1,0 +1,26 @@
+# SwiftPM / Xcode
+.build/
+.swiftpm/
+xcuserdata/
+DerivedData/
+*.xcodeproj/
+*.xcuserstate
+Package.resolved
+
+# Build and packaging output (make app / make zip / make tap)
+dist/
+*.iconset
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Scratch space
+.scratch/
+
+# Editors
+.idea/
+.vscode/
+*.swp

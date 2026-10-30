@@ -1,0 +1,159 @@
+name: Release
+
+# Pushing a tag such as v1.2.3 builds a universal Barback.app, publishes the GitHub release with
+# that version's CHANGELOG.md section as its notes and, when the TAP_GITHUB_TOKEN secret exists,
+# updates the Homebrew cask in MrAshRhodes/homebrew-tap. A published release is never rebuilt or
+# overwritten, because the cask pins the sha256 of its zip.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  SWIFTW_BUILD_SYSTEM: native
+
+jobs:
+  release:
+    name: Build and publish
+    runs-on: macos-latest
+    timeout-minutes: 45
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v7
+
+      - name: Resolve the version
+        id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          version_re='^[0-9]+(\.[0-9]+){1,3}(-[0-9A-Za-z.-]+)?$'
+          if [[ ! $version =~ $version_re ]]; then
+            echo "::error::Tag '$GITHUB_REF_NAME' is not a version tag such as v1.2.3 or v1.2.3-beta.1"
+            exit 1
+          fi
+          file_version="$(tr -d '[:space:]' < VERSION)"
+          if [[ "$version" != "$file_version" ]]; then
+            echo "::warning title=Version mismatch::Tag $GITHUB_REF_NAME does not match the VERSION file ($file_version). Releasing $version."
+          fi
+          prerelease=false
+          if [[ "$version" == *-* ]]; then
+            prerelease=true
+          fi
+          # Published assets are immutable: the Homebrew cask pins the zip's sha256, and every
+          # build differs byte for byte, so replacing an asset would break `brew install`.
+          exists=false
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            exists=true
+            echo "::notice title=Release already published::$GITHUB_REF_NAME already has a release, so nothing is rebuilt or replaced. Delete the release and tag to rebuild, or cut a new version."
+          fi
+          {
+            echo "version=$version"
+            echo "prerelease=$prerelease"
+            echo "exists=$exists"
+          } >> "$GITHUB_OUTPUT"
+
+      # Fails in seconds, before the build, if CHANGELOG.md at the tag has no section for this
+      # version. Pre-releases may use the Unreleased entries instead.
+      - name: Check the changelog
+        if: steps.version.outputs.exists != 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          PRERELEASE: ${{ steps.version.outputs.prerelease }}
+        run: |
+          flags=()
+          if [[ "$PRERELEASE" == true ]]; then
+            flags+=(--allow-unreleased)
+          fi
+          Scripts/changelog.sh check
+          Scripts/changelog.sh notes "$VERSION" ${flags[@]+"${flags[@]}"} > "$RUNNER_TEMP/changelog.md"
+
+      - name: Show the toolchain
+        if: steps.version.outputs.exists != 'true'
+        run: |
+          xcodebuild -version
+          swift --version
+
+      - name: Test
+        if: steps.version.outputs.exists != 'true'
+        run: Scripts/swiftw.sh test
+
+      - name: Build and package
+        if: steps.version.outputs.exists != 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: Scripts/package_release.sh --version "$VERSION" --formats zip --require-universal --build-number "$GITHUB_RUN_NUMBER"
+
+      - name: Publish the GitHub release
+        if: steps.version.outputs.exists != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+          PRERELEASE: ${{ steps.version.outputs.prerelease }}
+        run: |
+          assets=(
+            "dist/Barback-$VERSION.zip"
+            "dist/Barback-$VERSION.zip.sha256"
+          )
+          flags=()
+          if [[ "$PRERELEASE" == true ]]; then
+            flags+=(--prerelease)
+          fi
+          # The changelog section comes first, then the install and update instructions.
+          {
+            if [[ -s "$RUNNER_TEMP/changelog.md" ]]; then
+              echo "## What's changed"
+              echo
+              cat "$RUNNER_TEMP/changelog.md"
+              echo
+            fi
+            sed "s/@VERSION@/$VERSION/g" .github/release-notes-header.md
+          } > "$RUNNER_TEMP/release-notes.md"
+          gh release create "$GITHUB_REF_NAME" "${assets[@]}" \
+            --title "Barback $VERSION" \
+            --notes-file "$RUNNER_TEMP/release-notes.md" \
+            ${flags[@]+"${flags[@]}"}
+
+  tap:
+    name: Update the Homebrew tap
+    needs: release
+    if: needs.release.outputs.prerelease != 'true'
+    runs-on: macos-latest
+    timeout-minutes: 15
+    # One tap update at a time across every tag, so releases pushed close together (or a re-run of an
+    # older release) can't race. update_tap.sh also refuses to replace a newer cask with an older one.
+    concurrency:
+      group: tap-update
+      cancel-in-progress: false
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v7
+
+      - name: Check for a Homebrew tap token
+        id: tap
+        env:
+          TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
+          RELEASE_VERSION: ${{ needs.release.outputs.version }}
+        run: |
+          if [[ -n "$TAP_GITHUB_TOKEN" ]]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Homebrew tap not updated::Add a TAP_GITHUB_TOKEN secret (a token that can push to MrAshRhodes/homebrew-tap) to update the cask automatically, or run Scripts/update_tap.sh --version $RELEASE_VERSION --from-release yourself."
+          fi
+
+      - name: Update the Homebrew tap
+        if: steps.tap.outputs.enabled == 'true'
+        env:
+          TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
+          VERSION: ${{ needs.release.outputs.version }}
+        run: Scripts/update_tap.sh --version "$VERSION" --from-release
