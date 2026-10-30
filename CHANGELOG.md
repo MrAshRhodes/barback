@@ -7,6 +7,8 @@ See [GitHub Releases](https://github.com/MrAshRhodes/barback/releases) for downl
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-30
+
 ### Added
 
 - Carlos’ Marañon toggle icon: a hand-drawn cashew apple with its nut, selectable last in the Settings › Appearance icon picker. It is outlined while items are hidden and filled while they are revealed, follows the icon weight setting, and is drawn as a template image so it adapts to light and dark menu bars.
@@ -39,5 +41,6 @@ First public release.
 - Universal (Apple silicon + Intel) app for macOS 14 Sonoma or later, distributed as a zip and a Homebrew cask (`brew install --cask mrashrhodes/tap/barback`).
 
 
-[Unreleased]: https://github.com/MrAshRhodes/barback/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/MrAshRhodes/barback/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/MrAshRhodes/barback/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/MrAshRhodes/barback/releases/tag/v0.1.0
