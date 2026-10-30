@@ -11,20 +11,44 @@ Package.resolved
 dist/
 *.iconset
 
+# Production artifacts come only from the hosted Release workflow, so a stray app, disk image
+# or checksum outside dist/ (a downloaded release, for example) must never be committed.
+*.app/
+*.dmg
+*.pkg
+*.xcarchive/
+Barback-*.zip
+Barback-*.zip.sha256
+Barback-*.dmg.sha256
+
 # macOS
 .DS_Store
 .AppleDouble
 .LSOverride
 ._*
 
-# Scratch space
+# Scratch space and session worktrees
 .scratch/
+.worktrees/
 
-# Signing material must never enter source control.
+# Signing material must never enter source control: Developer ID certificates and keys, App Store
+# Connect API keys, provisioning profiles, keychains, and base64 copies of the secrets that are
+# stored in the `release` environment.
 *.p12
+*.pfx
 *.p8
+*.pem
+*.key
+*.cer
+*.certSigningRequest
+*.mobileprovision
+*.provisionprofile
 *.keychain
 *.keychain-db
+*.b64
+*.base64
+.env
+.env.*
 
 # Editors
 .idea/
