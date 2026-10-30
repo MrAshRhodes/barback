@@ -8,11 +8,54 @@ enum StatusIcons {
     static let togglePointSize: CGFloat = 13
 
     static func toggleImage(style: ToggleIconStyle, weight: IconWeight, revealed: Bool, label: String?) -> NSImage? {
+        if let layers = style.glyphLayers(revealed: revealed, weight: weight) {
+            return glyphImage(layers: layers, size: ToggleIconStyle.glyphCanvasSize, label: label)
+        }
         let config = NSImage.SymbolConfiguration(pointSize: togglePointSize, weight: weight.fontWeight)
-        let image = (NSImage(systemSymbolName: style.symbolName(revealed: revealed), accessibilityDescription: label)
+        let name = style.symbolName(revealed: revealed) ?? ToggleIconStyle.fallbackSymbolName(revealed: revealed)
+        let image = (NSImage(systemSymbolName: name, accessibilityDescription: label)
             ?? NSImage(systemSymbolName: ToggleIconStyle.fallbackSymbolName(revealed: revealed), accessibilityDescription: label))?
             .withSymbolConfiguration(config)
         image?.isTemplate = true
+        return image
+    }
+
+    /// Small image of a style for the icon picker's rows: the SF Symbol is drawn by the row itself, drawn glyphs
+    /// need an image at menu icon size.
+    static func pickerImage(style: ToggleIconStyle, size: CGFloat = 16) -> NSImage? {
+        guard let layers = style.glyphLayers(revealed: false, weight: .regular) else { return nil }
+        return glyphImage(layers: layers, size: CGSize(width: size, height: size), label: nil)
+    }
+
+    /// Draws vector layers on the glyph canvas, scaled to `size`. A template image, so only alpha matters.
+    private static func glyphImage(layers: [GlyphLayer], size: CGSize, label: String?) -> NSImage {
+        let canvas = ToggleIconStyle.glyphCanvasSize
+        let image = NSImage(size: size, flipped: false) { rect in
+            guard let context = NSGraphicsContext.current?.cgContext else { return false }
+            context.scaleBy(x: rect.width / canvas.width, y: rect.height / canvas.height)
+            context.setFillColor(NSColor.black.cgColor)
+            context.setStrokeColor(NSColor.black.cgColor)
+            context.setLineCap(.round)
+            context.setLineJoin(.round)
+            for layer in layers {
+                context.addPath(layer.path.cgPath)
+                switch (layer.fillsInterior, layer.lineWidth > 0) {
+                case (true, true):
+                    context.setLineWidth(layer.lineWidth)
+                    context.drawPath(using: .fillStroke)
+                case (true, false):
+                    context.fillPath()
+                case (false, true):
+                    context.setLineWidth(layer.lineWidth)
+                    context.strokePath()
+                case (false, false):
+                    context.beginPath()
+                }
+            }
+            return true
+        }
+        image.isTemplate = true
+        image.accessibilityDescription = label
         return image
     }
 
@@ -80,6 +123,7 @@ extension ToggleIconStyle {
         case .wineglass: return String(localized: "Wine Glass")
         case .mug: return String(localized: "Mug")
         case .dot: return String(localized: "Dot")
+        case .maranon: return String(localized: "Carlos’ Marañon")
         }
     }
 }

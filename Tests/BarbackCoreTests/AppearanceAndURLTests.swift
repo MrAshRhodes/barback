@@ -95,12 +95,19 @@ struct AppearanceTests {
 
     @Test func toggleIconsChangeWithState() {
         for style in ToggleIconStyle.allCases {
-            #expect(style.symbolName(revealed: true) != style.symbolName(revealed: false), "\(style) must show state")
+            if style.isCustomGlyph {
+                #expect(
+                    style.glyphLayers(revealed: true, weight: .default) != style.glyphLayers(revealed: false, weight: .default),
+                    "\(style) must show state"
+                )
+            } else {
+                #expect(style.symbolName(revealed: true) != style.symbolName(revealed: false), "\(style) must show state")
+            }
         }
     }
 
     @Test func everySymbolExistsOnThisSystem() {
-        var names = ToggleIconStyle.allCases.flatMap { [$0.symbolName(revealed: true), $0.symbolName(revealed: false)] }
+        var names = ToggleIconStyle.allCases.flatMap { style in [true, false].compactMap { style.symbolName(revealed: $0) } }
         names += DividerStyle.allCases.compactMap(\.symbolName)
         names += [ToggleIconStyle.fallbackSymbolName(revealed: true), ToggleIconStyle.fallbackSymbolName(revealed: false)]
         for name in names {

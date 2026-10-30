@@ -1,7 +1,7 @@
 import CoreGraphics
 
 /// Glyph set for Barback's always-visible toggle item. Every symbol ships with SF Symbols 4 or earlier,
-/// so all of them exist on macOS 14.
+/// so all of them exist on macOS 14. Carlos’ Marañon has no symbol; it is drawn (see `glyphLayers`).
 public enum ToggleIconStyle: String, CaseIterable, Codable, Sendable, Identifiable {
     case chevron
     case chevronCircle
@@ -12,16 +12,17 @@ public enum ToggleIconStyle: String, CaseIterable, Codable, Sendable, Identifiab
     case wineglass
     case mug
     case dot
+    case maranon
 
     public static let `default`: ToggleIconStyle = .chevron
 
     public var id: String { rawValue }
 
     /// SF Symbol shown while hidden items are hidden (`revealed == false`) or showing.
-    /// Directional glyphs point the way the hidden items will appear or go.
-    public func symbolName(revealed: Bool) -> String {
+    /// Directional glyphs point the way the hidden items will appear or go. Nil for drawn styles.
+    public func symbolName(revealed: Bool) -> String? {
         switch self {
-        case .chevron: return revealed ? "chevron.right" : "chevron.left"
+        case .chevron: return Self.fallbackSymbolName(revealed: revealed)
         case .chevronCircle: return revealed ? "chevron.right.circle.fill" : "chevron.left.circle"
         case .triangle: return revealed ? "arrowtriangle.right.fill" : "arrowtriangle.left.fill"
         case .eye: return revealed ? "eye" : "eye.slash"
@@ -30,12 +31,13 @@ public enum ToggleIconStyle: String, CaseIterable, Codable, Sendable, Identifiab
         case .wineglass: return revealed ? "wineglass.fill" : "wineglass"
         case .mug: return revealed ? "mug.fill" : "mug"
         case .dot: return revealed ? "circlebadge" : "circlebadge.fill"
+        case .maranon: return nil
         }
     }
 
-    /// Used if a symbol can't be loaded.
+    /// Used if a symbol can't be loaded: the default style's chevron.
     public static func fallbackSymbolName(revealed: Bool) -> String {
-        ToggleIconStyle.default.symbolName(revealed: revealed)
+        revealed ? "chevron.right" : "chevron.left"
     }
 }
 

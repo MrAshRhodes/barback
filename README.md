@@ -51,7 +51,7 @@ Barback adds a **chevron** to your menu bar and a thin **separator** to its left
 2. **Show or hide.** Click the chevron, or press **⌃⌥⌘B** from anywhere. Items left of the separator slide out of view or back in.
 3. **Always-hidden items.** Enable the second (always-hidden) separator in Settings and ⌘-drag items to its left. **Option-click** the chevron to reveal them too.
 4. **Menu.** Right-click the chevron for Show/Hide, Show Always-Hidden, Settings… (⌘,), About, Getting Started and Quit.
-5. **Make it yours.** In Settings › Appearance, pick a style or choose the icon (chevron, eye, wine glass, mug and more), its weight, separator styles (line, dashed, dot, double line, chevron or invisible) and up to three extra dividers for grouping items.
+5. **Make it yours.** In Settings › Appearance, pick a style or choose the icon (chevron, eye, wine glass, mug, Carlos’ Marañon and more), its weight, separator styles (line, dashed, dot, double line, chevron or invisible) and up to three extra dividers for grouping items.
 
 The first time Barback starts, a short tip under the chevron explains the basics; open it again with **Getting Started** in the menu.
 

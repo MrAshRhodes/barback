@@ -7,6 +7,10 @@ See [GitHub Releases](https://github.com/MrAshRhodes/barback/releases) for downl
 
 ## [Unreleased]
 
+### Added
+
+- Carlos’ Marañon toggle icon: a hand-drawn cashew apple with its nut, selectable last in the Settings › Appearance icon picker. It is outlined while items are hidden and filled while they are revealed, follows the icon weight setting, and is drawn as a template image so it adapts to light and dark menu bars.
+
 ## [0.1.0] - 2026-10-30
 
 First public release.

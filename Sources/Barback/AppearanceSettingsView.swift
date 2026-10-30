@@ -39,7 +39,7 @@ struct AppearanceSettingsView: View {
                 }
                 Picker("Icon", selection: appearance.toggleIcon) {
                     ForEach(ToggleIconStyle.allCases) { icon in
-                        Label(icon.displayName, systemImage: icon.symbolName(revealed: false)).tag(icon)
+                        iconLabel(icon).tag(icon)
                     }
                 }
                 Picker("Weight", selection: appearance.iconWeight) {
@@ -102,6 +102,22 @@ struct AppearanceSettingsView: View {
         .formStyle(.grouped)
         .frame(width: SettingsMetrics.width)
         .fixedSize(horizontal: false, vertical: true)
+    }
+
+    @ViewBuilder
+    private func iconLabel(_ icon: ToggleIconStyle) -> some View {
+        if let symbol = icon.symbolName(revealed: false) {
+            Label(icon.displayName, systemImage: symbol)
+        } else if let image = StatusIcons.pickerImage(style: icon) {
+            Label {
+                Text(icon.displayName)
+            } icon: {
+                Image(nsImage: image)
+                    .renderingMode(.template)
+            }
+        } else {
+            Text(icon.displayName)
+        }
     }
 
     @ViewBuilder
