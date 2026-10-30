@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>86’d · page not found · Barback</title>
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#0E0F0C">
+<meta name="color-scheme" content="dark">
+<!-- Served for any missing path, so every URL here is absolute to the project site. -->
+<link rel="icon" type="image/png" sizes="64x64" href="/barback/favicon.png">
+<link rel="apple-touch-icon" href="/barback/apple-touch-icon.png">
+<link rel="preload" href="/barback/fonts/BigShouldersDisplay-wght.woff2" as="font" type="font/woff2" crossorigin>
+<style>
+@font-face { font-family: "Big Shoulders"; src: url("/barback/fonts/BigShouldersDisplay-wght.woff2") format("woff2"); font-weight: 500 900; font-display: swap; }
+@font-face { font-family: "Schibsted Grotesk"; src: url("/barback/fonts/SchibstedGrotesk-wght.woff2") format("woff2"); font-weight: 400 700; font-display: swap; }
+@font-face { font-family: "Martian Mono"; src: url("/barback/fonts/MartianMono-SemiCondensed-wght.woff2") format("woff2"); font-weight: 300 700; font-display: swap; }
+:root {
+  --ink: #0E0F0C; --bar: #1A1A16; --brass: #D9A441; --brass-hi: #F0C46B; --cream: #F2EBDD;
+  --text: #EEE7D8; --mute: #A39C8C; --red: #FF4D2E;
+  --display: "Big Shoulders", "Arial Narrow", Impact, sans-serif;
+  --sans: "Schibsted Grotesk", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --mono: "Martian Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --gutter: clamp(1rem, 4vw, 3rem);
+}
+*, *::before, *::after { box-sizing: border-box; }
+html { background: var(--ink); -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+body {
+  display: flex; flex-direction: column; min-height: 100vh; min-height: 100svh; margin: 0;
+  background: var(--ink); color: var(--text); font: 400 1.0625rem/1.6 var(--sans);
+  -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
+}
+body::before, body::after { content: ""; position: fixed; inset: 0; pointer-events: none; }
+body::before {
+  z-index: 10; opacity: .07;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .9 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+body::after { z-index: 5; background: radial-gradient(ellipse 120% 95% at 50% 35%, transparent 58%, rgba(0, 0, 0, .38)); }
+::selection { background: var(--brass); color: var(--ink); }
+a { color: var(--brass-hi); text-underline-offset: .2em; }
+a:hover { color: var(--cream); }
+:focus-visible { outline: 2px solid var(--brass-hi); outline-offset: 3px; }
+.top { display: flex; align-items: center; justify-content: space-between; height: 2.25rem; padding: 0 var(--gutter); background: var(--bar); box-shadow: 0 2px 0 var(--brass); }
+.brand { display: inline-flex; align-items: center; gap: .45rem; color: var(--text); font-weight: 700; text-decoration: none; }
+.brand svg { width: 1.05rem; height: 1.05rem; fill: none; stroke: var(--brass); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.tray { display: flex; align-items: center; gap: .9rem; color: var(--red); }
+.tray i { width: 2px; height: 1rem; border-radius: 1px; background: var(--text); opacity: .6; }
+.tray svg { width: 1rem; height: 1rem; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+main { flex: 1; display: grid; align-content: center; width: min(100% - 2 * var(--gutter), 1240px); margin: 0 auto; padding: clamp(3rem, 9vh, 6rem) 0; }
+.eyebrow { display: flex; align-items: center; gap: .8em; margin: 0 0 clamp(1.5rem, 3vw, 2.5rem); font: 500 .78rem/1.4 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--brass); }
+.eyebrow span { flex: none; width: .55rem; height: .55rem; border-radius: 50%; background: var(--red); }
+h1 { margin: 0; font: 800 clamp(7rem, 34vw, 23rem)/.78 var(--display); letter-spacing: -.01em; color: var(--cream); text-transform: uppercase; }
+h1 .out { color: transparent; -webkit-text-stroke: max(2px, .012em) var(--cream); }
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.lede { max-width: 34rem; margin: clamp(1.5rem, 4vh, 2.5rem) 0 0; font-size: clamp(1.35rem, 2vw, 1.5rem); line-height: 1.5; }
+.ticket { margin: 1.25rem 0 0; font: 400 .78rem/1.6 var(--mono); color: var(--mute); overflow-wrap: anywhere; }
+.ticket b { font-weight: 600; color: var(--brass-hi); }
+.cta { display: flex; flex-wrap: wrap; gap: .75rem; margin-top: 2rem; }
+.btn { display: inline-flex; align-items: center; min-height: 3rem; padding: 0 1.5rem; border-radius: 999px; font-weight: 600; text-decoration: none; transition: background-color .15s, box-shadow .15s, color .15s; }
+.btn-brass { background: var(--brass); color: var(--ink); }
+.btn-brass:hover { background: var(--brass-hi); color: var(--ink); }
+.btn-ghost { color: var(--text); box-shadow: inset 0 0 0 1px rgba(238, 231, 216, .3); }
+.btn-ghost:hover { color: var(--cream); box-shadow: inset 0 0 0 1px var(--brass); }
+@media (forced-colors: active) { h1 .out { color: CanvasText; -webkit-text-stroke: 0; } }
+</style>
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="/barback/"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M1.8 3.4h12.4"/><path d="M9.9 6.2 7 9.1l2.9 2.9"/></svg>Barback</a>
+  <span class="tray" aria-hidden="true"><i></i><svg viewBox="0 0 16 16" focusable="false"><path d="M10 3.2 5.2 8l4.8 4.8"/></svg></span>
+</header>
+<main>
+  <p class="eyebrow"><span aria-hidden="true"></span>Error 404 · off the menu</p>
+  <h1>86<span class="out">’d</span><span class="sr-only">: page not found</span></h1>
+  <p class="lede">Behind the bar, 86’d means it’s off the menu. Whatever you ordered isn’t being served here. It may have moved, or it never existed. The bar itself is still open.</p>
+  <p class="ticket">Order <b id="order">this page</b> · status 86’d</p>
+  <div class="cta">
+    <a class="btn btn-brass" href="/barback/">Back to the bar</a>
+    <a class="btn btn-ghost" href="https://github.com/MrAshRhodes/barback/issues">Report a broken link</a>
+  </div>
+</main>
+<script>document.getElementById("order").textContent = decodeURI(location.pathname);</script>
+</body>
+</html>

@@ -1,0 +1,462 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Barback: keep the menu bar clear · free menu bar icon hider for macOS</title>
+<meta name="description" content="Barback is a free, open-source menu bar item hider for macOS. Tuck icons behind a chevron and bring them back with a click or ⌃⌥⌘B. No polling, no screen recording, no required permissions, no network.">
+<link rel="canonical" href="https://mrashrhodes.github.io/barback/">
+<meta name="theme-color" content="#0E0F0C">
+<meta name="color-scheme" content="dark">
+<link rel="icon" type="image/png" sizes="64x64" href="favicon.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="preload" href="fonts/BigShouldersDisplay-wght.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/SchibstedGrotesk-wght.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/MartianMono-SemiCondensed-wght.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="styles.css">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Barback">
+<meta property="og:title" content="Barback: keep the menu bar clear">
+<meta property="og:description" content="A free, open-source menu bar icon hider for macOS. One chevron, one separator, no permissions required.">
+<meta property="og:url" content="https://mrashrhodes.github.io/barback/">
+<meta property="og:image" content="https://mrashrhodes.github.io/barback/assets/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Barback: keep the bar clear. A free menu bar icon hider for macOS.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Barback: keep the menu bar clear">
+<meta name="twitter:description" content="A free, open-source menu bar icon hider for macOS. One chevron, one separator, no permissions required.">
+<meta name="twitter:image" content="https://mrashrhodes.github.io/barback/assets/og.png">
+<script>document.documentElement.classList.add("js")</script>
+<script src="site.js" defer></script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Barback",
+  "description": "A fast, lightweight, open-source menu bar item hider for macOS.",
+  "applicationCategory": "UtilitiesApplication",
+  "operatingSystem": "macOS 14 or later",
+  "softwareVersion": "0.1.0",
+  "license": "https://opensource.org/licenses/MIT",
+  "url": "https://mrashrhodes.github.io/barback/",
+  "downloadUrl": "https://github.com/MrAshRhodes/barback/releases/latest",
+  "image": "https://mrashrhodes.github.io/barback/assets/icon-256.png",
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+  "author": { "@type": "Person", "name": "Ash Rhodes", "url": "https://github.com/MrAshRhodes" }
+}
+</script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="top" id="top">
+  <div class="mb" id="menubar" data-state="hidden" data-boot>
+    <div class="mb-bar">
+      <nav class="mb-menus" aria-label="Sections">
+        <a class="mb-app" href="#top"><svg class="mb-mark" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M1.8 3.4h12.4"/><path d="M9.9 6.2 7 9.1l2.9 2.9"/></svg>Barback</a>
+        <a href="#recipe">Recipe</a>
+        <a class="mb-more" href="#tab">Tab</a>
+        <a href="#menu">Menu</a>
+        <a class="mb-more" href="#story">Story</a>
+        <a href="#install">Install</a>
+      </nav>
+      <div class="mb-status">
+        <div class="mb-push">
+          <div class="mb-group mb-ah" id="mb-always" role="group" aria-label="Always-hidden items" aria-hidden="true">
+            <span class="mb-item mb-x" style="--i:14" role="img" aria-label="Grid utility"><svg viewBox="0 0 16 16" focusable="false"><g fill="currentColor" stroke="none"><circle cx="4" cy="4" r="1.3"/><circle cx="8" cy="4" r="1.3"/><circle cx="12" cy="4" r="1.3"/><circle cx="4" cy="8" r="1.3"/><circle cx="8" cy="8" r="1.3"/><circle cx="12" cy="8" r="1.3"/><circle cx="4" cy="12" r="1.3"/><circle cx="8" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/></g></svg></span>
+            <span class="mb-item" style="--i:13" role="img" aria-label="Tag utility"><svg viewBox="0 0 16 16" focusable="false"><path d="M6.4 2.4 5 13.6M11 2.4 9.6 13.6M2.6 6h11M2.4 10h11"/></svg></span>
+          </div>
+          <span class="mb-sep mb-sep-ah" style="--i:12" aria-hidden="true"><i class="mb-band"></i><b class="mb-len">10_000</b></span>
+          <div class="mb-group mb-hid" id="mb-hidden" role="group" aria-label="Hidden items" aria-hidden="true">
+            <span class="mb-item" style="--i:11" role="img" aria-label="Cloud sync"><svg viewBox="0 0 16 16" focusable="false"><path d="M4.5 12.5h7.1a2.9 2.9 0 0 0 .4-5.8 4 4 0 0 0-7.7.9 2.5 2.5 0 0 0 .2 4.9z"/></svg></span>
+            <span class="mb-item mb-x" style="--i:10" role="img" aria-label="Music"><svg viewBox="0 0 16 16" focusable="false"><path d="M6.2 12V3.7l7-1.5v8.2"/><circle cx="4.5" cy="12.1" r="1.7"/><circle cx="11.5" cy="10.5" r="1.7"/></svg></span>
+            <span class="mb-item" style="--i:9" role="img" aria-label="File sharing"><svg viewBox="0 0 16 16" focusable="false"><path d="M2.5 5 8 2.3 13.5 5v6L8 13.7 2.5 11z"/><path d="M2.5 5 8 7.7 13.5 5M8 7.7v6"/></svg></span>
+            <span class="mb-item" style="--i:8" role="img" aria-label="Power monitor"><svg viewBox="0 0 16 16" focusable="false"><path d="M9.2 1.8 3.8 9h4.1l-1.1 5.2L12.2 7H8.1z"/></svg></span>
+            <span class="mb-item mb-x" style="--i:7" role="img" aria-label="Happy hour timer"><svg viewBox="0 0 16 16" focusable="false"><path d="M2.6 3h10.8L8 8.6zM8 8.6v4.8M5.2 13.4h5.6"/><circle cx="10.4" cy="4.6" r=".9" fill="currentColor" stroke="none"/></svg></span>
+          </div>
+        </div>
+        <span class="mb-sep mb-sep-h" style="--i:6" aria-hidden="true"><i class="mb-band"></i><b class="mb-len">10_000</b></span>
+        <span class="mb-item mb-x" style="--i:5" aria-hidden="true"><svg viewBox="0 0 16 16" focusable="false"><path d="M8 1.8c.5 3.2 1.9 4.6 5.2 5.2-3.3.6-4.7 2-5.2 5.2-.5-3.2-1.9-4.6-5.2-5.2 3.3-.6 4.7-2 5.2-5.2z"/></svg></span>
+        <button class="mb-item mb-chevron" id="mb-chevron" type="button" style="--i:4" aria-pressed="false" aria-controls="mb-hidden mb-always" aria-label="Show hidden menu bar items" disabled><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path class="chev-1" d="M10 3.2 5.2 8l4.8 4.8"/><path class="chev-2" d="M13.6 3.2 8.8 8l4.8 4.8"/></svg></button>
+        <span class="mb-item" style="--i:3" aria-hidden="true"><svg viewBox="0 0 16 16" focusable="false"><path d="M1.9 6.3a8.7 8.7 0 0 1 12.2 0M4.1 8.6a5.6 5.6 0 0 1 7.8 0M6.3 10.9a2.4 2.4 0 0 1 3.4 0"/><circle cx="8" cy="13" r="1" fill="currentColor" stroke="none"/></svg></span>
+        <span class="mb-item mb-battery" style="--i:2" aria-hidden="true"><svg viewBox="0 0 26 16" focusable="false"><rect x="1.5" y="3.5" width="20" height="9" rx="2.6"/><path d="M23.7 6.6v2.8"/><rect x="3.4" y="5.4" width="12.6" height="5.2" rx="1.2" fill="currentColor" stroke="none"/></svg></span>
+        <span class="mb-item opt" style="--i:1" aria-hidden="true"><svg viewBox="0 0 16 16" focusable="false"><rect x="2" y="2.8" width="12" height="4.4" rx="2.2"/><rect x="2" y="8.8" width="12" height="4.4" rx="2.2"/><circle cx="11.8" cy="5" r="1.2" fill="currentColor" stroke="none"/><circle cx="4.2" cy="11" r="1.2" fill="currentColor" stroke="none"/></svg></span>
+        <span class="mb-item mb-clock" style="--i:0" aria-hidden="true"><span class="mb-day" id="mb-day">Fri</span> <span id="mb-time">9:41</span><span class="mb-ampm" id="mb-ampm"></span></span>
+      </div>
+    </div>
+    <div class="mb-rail" aria-hidden="true"><i class="mb-fuse" id="mb-fuse"></i></div>
+  </div>
+</header>
+
+<main id="main">
+  <section class="hero" aria-labelledby="hero-title">
+    <div class="wrap">
+      <div class="mb-notes">
+        <p class="mb-code"><span class="c-obj" id="code-obj">hiddenSeparator</span><span class="c-op">.length = </span><span class="c-num" id="code-num">10_000</span> <span class="c-com" id="code-com">// hidden items pushed off-screen</span></p>
+        <p class="mb-help" id="mb-help" hidden>
+          <span class="mb-help-line">Click <span class="sym sym-red" aria-hidden="true">‹</span><span class="sr-only">the chevron</span> or press <button type="button" class="key key-b" id="key-b" aria-pressed="true" title="Single-key shortcut (click to turn off)"><kbd>B</kbd><span class="sr-only"> key shortcut</span></button></span>
+          <span class="mb-help-line">Option-click or <button type="button" class="key key-opt" id="key-opt" aria-pressed="false" title="Latch Option for the next click"><kbd>⌥</kbd> Option</button> for always-hidden</span>
+          <span class="mb-help-line mb-timer" id="mb-timer">Slowed down for show. In Barback it’s instant.</span>
+        </p>
+        <p class="sr-only" id="mb-live" aria-live="polite"></p>
+      </div>
+
+      <p class="eyebrow eyebrow-live"><span class="live-dot" aria-hidden="true"></span>Free &amp; open source · menu bar app for macOS</p>
+      <h1 class="hero-title" id="hero-title"><span class="ht-line">Keep the bar</span> <span class="ht-line ht-outline">clear.</span></h1>
+
+      <div class="hero-foot">
+        <p class="lede">Barback tucks the menu bar icons you rarely need behind a chevron, and brings them back with one click or <kbd class="combo">⌃⌥⌘B</kbd>. No polling, no screen recording, no permissions required. One job, done instantly.</p>
+        <div class="hero-actions">
+          <div class="brew">
+            <span class="brew-prompt" aria-hidden="true">$</span>
+            <code class="brew-cmd">brew install --cask mrashrhodes/<wbr>tap/<wbr>barback</code>
+            <button type="button" class="copy" data-copy="brew install --cask mrashrhodes/tap/barback" aria-label="Copy the Homebrew install command" hidden>Copy</button>
+          </div>
+          <div class="cta-row">
+            <a class="btn btn-brass" href="https://github.com/MrAshRhodes/barback/releases/latest">Download v0.1.0</a>
+            <a class="btn btn-ghost" href="https://github.com/MrAshRhodes/barback">View source</a>
+          </div>
+          <p class="fine">macOS 14 Sonoma or later · Apple silicon &amp; Intel · MIT license</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="recipe" id="recipe" aria-labelledby="recipe-title">
+    <div class="wrap">
+      <header class="sec-head reveal">
+        <p class="eyebrow"><span class="no">No. 01</span> House recipe</p>
+        <h2 id="recipe-title">How it’s mixed</h2>
+        <p class="sec-lede">Every good menu bar hider runs on one old trick, and it fits on an index card.</p>
+      </header>
+
+      <article class="card reveal" aria-labelledby="card-title">
+        <div class="card-a">
+          <p class="card-no">Recipe card · v0.1.0</p>
+          <h3 class="card-title" id="card-title">The Barback</h3>
+          <p class="card-sub">A clear menu bar, served instantly.</p>
+          <dl class="card-meta">
+            <div><dt>Serves</dt><dd>1 Mac</dd></div>
+            <div><dt>Glass</dt><dd>Any menu bar</dd></div>
+            <div><dt>Garnish</dt><dd>One chevron</dd></div>
+          </dl>
+          <h4 class="card-h">Ingredients</h4>
+          <ul class="ingredients">
+            <li><span class="qty">1</span><span>chevron <span class="sym">‹</span> <span class="note">the toggle, always in view</span></span></li>
+            <li><span class="qty">1</span><span>separator <span class="sym">│</span> <span class="note">hides what sits to its left</span></span></li>
+            <li><span class="qty">1</span><span>always-hidden separator <span class="sym">┊</span> <span class="note">optional</span></span></li>
+            <li><span class="qty">1</span><span>hotkey <kbd>⌃⌥⌘B</kbd> <span class="note">to taste</span></span></li>
+            <li><span class="qty">0</span><span>required permissions</span></li>
+            <li><span class="qty">0</span><span>dependencies</span></li>
+          </ul>
+        </div>
+        <div class="card-b">
+          <h4 class="card-h">Method</h4>
+          <ol class="method">
+            <li>Install Barback and open it. A chevron <span class="sym">‹</span> and a separator <span class="sym">│</span> appear in your menu bar, with a short tip to show you around.</li>
+            <li>Hold <kbd>⌘</kbd> and drag the icons you rarely use to the left of the <span class="sym">│</span>.</li>
+            <li>Click the chevron or press <kbd>⌃⌥⌘B</kbd>. The separator stretches to 10,000 points and pushes everything on its left off the screen. Click again and it shrinks back to a 14-point sliver.</li>
+            <li>For icons you almost never need, switch on the always-hidden section in Settings and drag them left of the <span class="sym">┊</span>. Option-click the chevron to see everything.</li>
+          </ol>
+          <p class="card-note"><strong>Barback’s note:</strong> if the <span class="sym">│</span> ends up to the right of the chevron, Barback won’t stretch it, because that would hide Barback too. It shows you how to drag it back instead.</p>
+          <svg class="coupe" viewBox="0 0 180 200" aria-hidden="true" focusable="false">
+            <path class="coupe-liquid" d="M23 64h134c-7 24-33 36-67 36s-60-12-67-36z"/>
+            <g class="coupe-glass">
+              <path d="M17 52h146"/>
+              <path d="M17 52c4 34 34 52 73 52s69-18 73-52"/>
+              <path d="M90 104v68"/>
+              <path d="M58 180c8-6 56-6 64 0"/>
+              <path d="M50 182h80"/>
+            </g>
+            <circle class="coupe-bubble" cx="70" cy="80" r="2.2"/>
+            <circle class="coupe-bubble" cx="104" cy="74" r="1.6"/>
+            <circle class="coupe-bubble" cx="88" cy="88" r="1.3"/>
+            <path class="coupe-garnish" d="M151 30 137 45l14 15"/>
+          </svg>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <section class="tab" id="tab" aria-labelledby="tab-title">
+    <div class="wrap tab-grid">
+      <header class="sec-head reveal">
+        <p class="eyebrow"><span class="no">No. 02</span> The tab</p>
+        <h2 id="tab-title">Runs up nothing.</h2>
+        <p class="sec-lede">Here’s everything Barback charges your Mac while it sits in the menu bar. Showing and hiding is one layout change of its own status items, so there’s nothing left running in between.</p>
+        <p class="tab-foot">The only timers are one-shot: the auto-rehide, plus a short dwell and a 0.4-second exit delay if you switch on show-on-hover, which checks the pointer at most 20 times a second. Hiding on app switch just listens for a system notification.</p>
+      </header>
+
+      <div class="receipt-wrap" id="receipt">
+        <div class="receipt">
+          <p class="r-brand">Barback</p>
+          <p class="r-center">Menu bar service · v0.1.0<br>Table: your menu bar</p>
+          <dl class="r-lines">
+            <div><dt>Polling loops</dt><dd>0</dd></div>
+            <div><dt>Screen captures</dt><dd>0</dd></div>
+            <div><dt>Event taps</dt><dd>0</dd></div>
+            <div><dt>Synthetic mouse drags</dt><dd>0</dd></div>
+            <div><dt>Required permissions</dt><dd>0</dd></div>
+            <div><dt>Network requests</dt><dd>0</dd></div>
+            <div><dt>Third-party dependencies</dt><dd>0</dd></div>
+            <div class="r-price"><dt>Price</dt><dd>$0.00</dd></div>
+            <div><dt>Tip</dt><dd>a ★ on GitHub</dd></div>
+            <div class="r-total"><dt>Total</dt><dd>$0.00</dd></div>
+          </dl>
+          <p class="r-center">Idle CPU ≈ 0% · MIT license</p>
+          <p class="r-thanks">Thank you, come again.</p>
+          <svg class="r-barcode" viewBox="0 0 236 34" preserveAspectRatio="none" aria-hidden="true" focusable="false"><rect x="0" width="1" height="34"/><rect x="4" width="1" height="34"/><rect x="6" width="1" height="34"/><rect x="10" width="3" height="34"/><rect x="15" width="3" height="34"/><rect x="20" width="1" height="34"/><rect x="24" width="1" height="34"/><rect x="27" width="2" height="34"/><rect x="30" width="2" height="34"/><rect x="33" width="1" height="34"/><rect x="36" width="1" height="34"/><rect x="38" width="2" height="34"/><rect x="42" width="1" height="34"/><rect x="45" width="2" height="34"/><rect x="48" width="1" height="34"/><rect x="51" width="1" height="34"/><rect x="54" width="1" height="34"/><rect x="57" width="2" height="34"/><rect x="61" width="3" height="34"/><rect x="65" width="1" height="34"/><rect x="67" width="2" height="34"/><rect x="71" width="1" height="34"/><rect x="75" width="3" height="34"/><rect x="80" width="1" height="34"/><rect x="83" width="2" height="34"/><rect x="87" width="2" height="34"/><rect x="92" width="1" height="34"/><rect x="94" width="2" height="34"/><rect x="98" width="3" height="34"/><rect x="104" width="3" height="34"/><rect x="109" width="2" height="34"/><rect x="112" width="1" height="34"/><rect x="114" width="1" height="34"/><rect x="116" width="2" height="34"/><rect x="120" width="1" height="34"/><rect x="124" width="3" height="34"/><rect x="128" width="2" height="34"/><rect x="131" width="1" height="34"/><rect x="134" width="2" height="34"/><rect x="137" width="2" height="34"/><rect x="140" width="2" height="34"/><rect x="144" width="1" height="34"/><rect x="147" width="3" height="34"/><rect x="152" width="2" height="34"/><rect x="155" width="2" height="34"/><rect x="160" width="2" height="34"/><rect x="164" width="3" height="34"/><rect x="170" width="3" height="34"/><rect x="174" width="1" height="34"/><rect x="176" width="3" height="34"/><rect x="181" width="2" height="34"/><rect x="184" width="1" height="34"/><rect x="187" width="1" height="34"/><rect x="190" width="1" height="34"/><rect x="193" width="1" height="34"/><rect x="196" width="1" height="34"/><rect x="200" width="1" height="34"/><rect x="204" width="2" height="34"/><rect x="208" width="1" height="34"/><rect x="211" width="1" height="34"/><rect x="213" width="1" height="34"/><rect x="215" width="1" height="34"/><rect x="218" width="1" height="34"/><rect x="221" width="3" height="34"/><rect x="225" width="2" height="34"/><rect x="229" width="2" height="34"/><rect x="233" width="2" height="34"/></svg>
+          <p class="r-center r-tiny">github.com/MrAshRhodes/barback</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="menu" id="menu" aria-labelledby="menu-title">
+    <div class="wrap">
+      <header class="sec-head reveal">
+        <p class="eyebrow"><span class="no">No. 03</span> The menu</p>
+        <h2 id="menu-title">Short menu. No filler.</h2>
+      </header>
+
+      <div class="board reveal">
+        <div class="board-col">
+          <h3 class="board-h">Signatures</h3>
+          <ul class="dishes">
+            <li>
+              <p class="dish"><span class="dish-name">Hidden section</span><span class="dish-dots" aria-hidden="true"></span><span class="dish-price">⌘-drag</span></p>
+              <p class="dish-desc">Drag icons left of the <span class="sym">│</span> separator. One click on the chevron tucks them away or brings them back.</p>
+            </li>
+            <li>
+              <p class="dish"><span class="dish-name">Always-hidden section</span><span class="dish-dots" aria-hidden="true"></span><span class="dish-price">⌥-click</span></p>
+              <p class="dish-desc">A second separator <span class="sym">┊</span> for icons you almost never need. Off until you want it. Option-click the chevron to see everything.</p>
+            </li>
+            <li>
+              <p class="dish"><span class="dish-name">Global hotkey</span><span class="dish-dots" aria-hidden="true"></span><span class="dish-price">⌃⌥⌘B</span></p>
+              <p class="dish-desc">Rebind it to any combination with <kbd>⌘</kbd>, <kbd>⌥</kbd> or <kbd>⌃</kbd>. Works without Accessibility permission, and VoiceOver announces the result.</p>
+            </li>
+            <li>
+              <p class="dish"><span class="dish-name">Auto-rehide</span><span class="dish-dots" aria-hidden="true"></span><span class="dish-price">10 s</span></p>
+              <p class="dish-desc">Hidden icons tuck themselves away again after 10 seconds, or anywhere from 5 seconds to 5 minutes, or never. Optionally, they also go the moment you switch apps. Either way, they wait while your pointer is in the menu bar or a menu is open.</p>
+            </li>
+            <li>
+              <p class="dish"><span class="dish-name">Show on hover</span><span class="dish-dots" aria-hidden="true"></span><span class="dish-price">opt-in</span></p>
+              <p class="dish-desc">Rest the pointer on the right-hand side of the menu bar to reveal hidden icons. They hide again 0.4 seconds after it leaves the bar.</p>
+            </li>
+          </ul>
+        </div>
+        <div class="board-col">
+          <h3 class="board-h">House standards</h3>
+          <ul class="dishes">
+            <li>
+              <p class="dish"><span class="dish-name">Launch at login</span><span class="dish-dots" aria-hidden="true"></span><span class="dish-price">one switch</span></p>
+              <p class="dish-desc">Uses the system’s own login items.</p>
+            </li>
+            <li>
+              <p class="dish"><span class="dish-name">Notch aware</span><span class="dish-dots" aria-hidden="true"></span><span class="dish-price">flagged</span></p>
+              <p class="dish-desc">Icons that would land behind the camera housing are flagged in Settings › Items.</p>
+            </li>
+            <li>
+              <p class="dish"><span class="dish-name">Items list</span><span class="dish-dots" aria-hidden="true"></span><span class="dish-price">on demand</span></p>
+              <p class="dish-desc">Every menu bar item and its section, built only when you open the tab. On macOS 26, optional Accessibility access adds app names.</p>
+            </li>
+            <li>
+              <p class="dish"><span class="dish-name">Native settings</span><span class="dish-dots" aria-hidden="true"></span><span class="dish-price">SwiftUI</span></p>
+              <p class="dish-desc">Liquid Glass on macOS 26 Tahoe, standard controls back to Sonoma.</p>
+            </li>
+            <li>
+              <p class="dish"><span class="dish-name">Universal</span><span class="dish-dots" aria-hidden="true"></span><span class="dish-price">arm64 · x86_64</span></p>
+              <p class="dish-desc">One small binary for Apple silicon and Intel Macs on macOS 14 or later.</p>
+            </li>
+            <li>
+              <p class="dish"><span class="dish-name">Idle CPU</span><span class="dish-dots" aria-hidden="true"></span><span class="dish-price">≈ 0%</span></p>
+              <p class="dish-desc">No polling loops. Nothing runs until you click.</p>
+            </li>
+          </ul>
+        </div>
+        <div class="board-col board-specials">
+          <h3 class="board-h">Specials</h3>
+          <ul class="dishes">
+            <li>
+              <p class="dish"><span class="dish-name">Appearance</span><span class="dish-dots" aria-hidden="true"></span><span class="dish-price">5 styles</span></p>
+              <p class="dish-desc">Five one-click styles (Classic, Minimal, Cocktail, Eye, Arrows) with a live preview, or mix your own: nine toggle icons in four weights, six separator styles, an accent tint while hidden icons show, and up to three extra dividers. Only Barback’s own items change.</p>
+            </li>
+            <li>
+              <p class="dish"><span class="dish-name">Automation</span><span class="dish-dots" aria-hidden="true"></span><span class="dish-price">barback://</span></p>
+              <p class="dish-desc">Drive it from Shortcuts, scripts, Raycast, Alfred or a Stream Deck: <code>open -g barback://toggle</code>, or swap in <code>show</code>, <code>hide</code>, <code>show-all</code>, <code>toggle-all</code> or <code>settings</code>. URLs can’t change your settings.</p>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="plates">
+        <figure class="plate reveal">
+          <img src="assets/settings-general.webp" width="520" height="602" loading="lazy" decoding="async" alt="Barback Settings, General tab: launch at login, hide items again after 10 seconds, show hidden items when hovering, the always-hidden section, and the ⌃⌥⌘B keyboard shortcut.">
+          <figcaption><span class="no">Plate 1</span> Settings › General</figcaption>
+        </figure>
+        <figure class="plate plate-sm reveal">
+          <img src="assets/menu.webp" width="289" height="163" loading="lazy" decoding="async" alt="Barback’s right-click menu: About Barback, Show Hidden Items (⌃⌥⌘B), Show Always-Hidden Items, Settings… (⌘,) and Quit Barback.">
+          <figcaption><span class="no">Plate 2</span> Right-click the chevron</figcaption>
+        </figure>
+        <p class="plates-note">Straight from the kitchen: real screenshots, macOS dark mode.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="story" id="story" aria-labelledby="story-title">
+    <div class="wrap story-grid">
+      <header class="sec-head reveal">
+        <p class="eyebrow"><span class="no">No. 04</span> Behind the bar</p>
+        <h2 id="story-title">Same trick. Less machinery.</h2>
+      </header>
+      <div class="story-text">
+        <p class="story-lede">Barback started as a teardown of Bartender 6.6.2. Static analysis only: the binary was read, never run, patched or redistributed. The question was how much machinery a menu bar hider really needs.</p>
+        <p>Inside: a two-speed polling loop, seven call sites that capture images of menu bar windows, six event-tap call sites, synthetic ⌘-drag mouse events for rearranging, an Accessibility crawl of menu bar apps through an XPC helper, and network endpoints for updates, licensing and subscriptions.</p>
+        <p>And at the heart of it, the same trick the open-source hiders use: a separator whose length jumps to 10,000 points. Barback keeps that trick and leaves the rest of the machinery out.</p>
+        <p>To be fair, that machinery powers real features: automatic rearranging, the Bartender Bar, search and menu bar styling. If you rely on them, keep using Bartender. If you only want icons out of the way, that’s the one job Barback does.</p>
+      </div>
+      <div class="story-side">
+        <div class="ledger-wrap">
+          <table class="ledger">
+            <caption>How each one hides your icons</caption>
+            <thead>
+              <tr><th scope="col">Job</th><th scope="col">Bartender 6.6.2</th><th scope="col">Barback 0.1.0</th></tr>
+            </thead>
+            <tbody>
+              <tr><th scope="row">Hide &amp; show</th><td>Separator length trick</td><td>Same trick</td></tr>
+              <tr><th scope="row">Background work</th><td>Two-speed polling loop</td><td>None, event-driven</td></tr>
+              <tr><th scope="row">Screen capture</th><td>Images of menu bar items</td><td>None</td></tr>
+              <tr><th scope="row">Event taps</th><td>Six call sites</td><td>None</td></tr>
+              <tr><th scope="row">Rearranging</th><td>Synthetic ⌘-drags</td><td>You ⌘-drag, macOS remembers</td></tr>
+              <tr><th scope="row">App names</th><td>Accessibility crawl via an XPC helper</td><td>Optional, Settings › Items only</td></tr>
+              <tr><th scope="row">Network</th><td>Updates, licensing, subscriptions</td><td>None</td></tr>
+              <tr><th scope="row">Size</th><td>≈ 36 MB binary, ~45 frameworks</td><td>≈ 1.8 MB, system frameworks only</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <figure class="snippet">
+          <figcaption>The whole trick, more or less</figcaption>
+<pre><code><span class="c-obj">hiddenSeparator</span>.length = <span class="c-num">10_000</span>  <span class="c-com">// hide: push it all off-screen</span>
+<span class="c-obj">hiddenSeparator</span>.length = <span class="c-num">14</span>      <span class="c-com">// show: back to a sliver</span></code></pre>
+        </figure>
+      </div>
+      <div class="story-foot">
+        <p class="credits">Barback stands on the shoulders of <a href="https://github.com/dwarvesf/hidden">Hidden Bar</a>, <a href="https://github.com/jordanbaird/Ice">Ice</a> and <a href="https://github.com/Mortennn/Dozer">Dozer</a>, which pioneered the separator technique.</p>
+        <p class="disclaimer">Bartender is a trademark of its respective owners. Barback is an independent project and is not affiliated with or endorsed by them.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="install" id="install" aria-labelledby="install-title">
+    <div class="wrap">
+      <header class="sec-head reveal">
+        <p class="eyebrow"><span class="no">No. 05</span> Install</p>
+        <h2 id="install-title" class="last-call">Last call.</h2>
+      </header>
+
+      <div class="install-grid">
+        <div class="terminal reveal">
+          <div class="term-bar">
+            <span class="term-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+            <span class="term-title">zsh</span>
+            <button type="button" class="copy" data-copy="brew install --cask mrashrhodes/tap/barback" aria-label="Copy the Homebrew install command" hidden>Copy</button>
+          </div>
+<pre class="term-body"><code><span class="t-prompt" aria-hidden="true">$ </span>brew install --cask mrashrhodes/tap/barback
+<span class="t-dim">==&gt; Tapping mrashrhodes/tap</span>
+<span class="t-dim">==&gt; Downloading https://github.com/MrAshRhodes/barback/releases/download/v0.1.0/Barback-0.1.0.zip</span>
+<span class="t-dim">==&gt; Installing Cask </span><span class="t-ok">barback</span>
+<span class="t-dim">==&gt; Moving App 'Barback.app' to '/Applications/Barback.app'</span>
+🍺  barback was successfully installed!</code></pre>
+        </div>
+        <figure class="coaster reveal" aria-hidden="true">
+          <svg class="coaster-ring" viewBox="0 0 300 300" focusable="false">
+            <defs><path id="coaster-path" d="M150 150m-117 0a117 117 0 1 1 234 0a117 117 0 1 1-234 0"/></defs>
+            <circle class="c-edge" cx="150" cy="150" r="146"/>
+            <circle class="c-line" cx="150" cy="150" r="136"/>
+            <circle class="c-line" cx="150" cy="150" r="98"/>
+            <text class="c-text"><textPath href="#coaster-path" textLength="732" lengthAdjust="spacing">BARBACK · FREE &amp; OPEN SOURCE · MIT · MACOS 14+ · </textPath></text>
+          </svg>
+          <img class="coaster-icon" src="assets/icon-256.webp" srcset="assets/icon-256.webp 256w, assets/icon-512.webp 512w" sizes="(min-width: 900px) 160px, 120px" width="256" height="256" loading="lazy" decoding="async" alt="">
+        </figure>
+      </div>
+
+      <div class="install-cols">
+        <div class="install-col">
+          <h3>Download</h3>
+          <p>Prefer a zip? Grab <code>Barback-0.1.0.zip</code> and its <code>.sha256</code> from <a href="https://github.com/MrAshRhodes/barback/releases/latest">Releases</a>, check it with <code>shasum -a 256 -c</code>, then move Barback.app to Applications.</p>
+          <p>Update with <code>brew upgrade --cask barback</code>.</p>
+        </div>
+        <div class="install-col">
+          <h3>Requirements</h3>
+          <ul class="ticks">
+            <li>macOS 14 Sonoma or later</li>
+            <li>Apple silicon or Intel</li>
+            <li>About 1.8 MB on disk</li>
+            <li>No permissions required</li>
+          </ul>
+        </div>
+        <div class="install-col">
+          <h3>The honest bit</h3>
+          <p>Barback is ad-hoc signed, not notarized. The Homebrew cask clears the quarantine flag for you. If macOS blocks a manual download, right-click the app and choose Open (macOS 14), or use System Settings → Privacy &amp; Security → Open Anyway (macOS 15 and later). Or clear the flag yourself:</p>
+          <p class="cmd"><code>xattr -dr com.apple.quarantine /Applications/Barback.app</code></p>
+        </div>
+      </div>
+      <p class="tip"><strong>First round:</strong> hold <kbd>⌘</kbd> and drag the icons you want gone to the left of the <span class="sym">│</span>, then click the chevron. Need a refresher later? Right-click the chevron and choose Getting Started.</p>
+    </div>
+  </section>
+
+  <section class="faq" id="faq" aria-labelledby="faq-title">
+    <div class="wrap faq-grid">
+      <header class="sec-head reveal">
+        <p class="eyebrow"><span class="no">No. 06</span> Questions</p>
+        <h2 id="faq-title">Ask the barback</h2>
+      </header>
+      <div class="faq-list">
+        <details>
+          <summary>Does Barback need any permissions?</summary>
+          <div class="faq-a"><p>No. Hiding, showing, the hotkey, hover and URL commands all work without Screen Recording or Accessibility. Accessibility is optional and used for one thing: showing app names in Settings › Items on macOS 26, where many items are hosted by Control Center.</p></div>
+        </details>
+        <details>
+          <summary>Will it rearrange my icons for me?</summary>
+          <div class="faq-a"><p>No, on purpose. You ⌘-drag icons where you want them and macOS remembers the order. Automatic rearranging needs synthetic mouse events, which is exactly the kind of machinery Barback leaves out.</p></div>
+        </details>
+        <details>
+          <summary>macOS 26 can already turn menu bar items off. Why Barback?</summary>
+          <div class="faq-a"><p>The “Allow in the Menu Bar” switches in System Settings remove items completely. Barback keeps them one click away. They work well together: switch off what you never use, tuck away what you only need sometimes.</p></div>
+        </details>
+        <details>
+          <summary>Does it phone home?</summary>
+          <div class="faq-a"><p>No. There’s no networking code at all: no telemetry, no analytics, no update checks. Updates come through Homebrew or GitHub Releases.</p></div>
+        </details>
+        <details>
+          <summary>What does it cost?</summary>
+          <div class="faq-a"><p>Nothing. Barback is free and open source under the MIT license. If it earns its keep, a star on GitHub is the tip jar.</p></div>
+        </details>
+        <details>
+          <summary>Something missing or broken?</summary>
+          <div class="faq-a"><p>Open an issue on <a href="https://github.com/MrAshRhodes/barback/issues">GitHub</a>. Small, focused pull requests are welcome too.</p></div>
+        </details>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <p class="foot-word" aria-hidden="true">Barback</p>
+    <nav aria-label="Project links">
+      <ul class="foot-links">
+        <li><a href="https://github.com/MrAshRhodes/barback">GitHub</a></li>
+        <li><a href="https://github.com/MrAshRhodes/barback/releases">Releases</a></li>
+        <li><a href="https://github.com/MrAshRhodes/barback/blob/main/CHANGELOG.md">Changelog</a></li>
+        <li><a href="https://github.com/MrAshRhodes/barback/issues">Issues</a></li>
+        <li><a href="https://github.com/MrAshRhodes/barback/blob/main/LICENSE">MIT License</a></li>
+      </ul>
+    </nav>
+    <p class="foot-meta">Made by <a href="https://github.com/MrAshRhodes">Ash Rhodes</a>. Set in Big Shoulders Display, Schibsted Grotesk and Martian Mono (<a href="fonts/LICENSE-OFL.txt">SIL Open Font License</a>).</p>
+    <p class="foot-legal">Bartender is a trademark of its respective owners. Barback is an independent project and is not affiliated with or endorsed by them.</p>
+  </div>
+</footer>
+</body>
+</html>
