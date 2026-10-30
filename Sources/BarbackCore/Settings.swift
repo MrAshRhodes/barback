@@ -14,6 +14,12 @@ public struct BarbackSettings: Equatable, Codable, Sendable {
     public var rehideOnAppSwitch: Bool
     /// Toggle icon, separator and divider styles.
     public var appearance: AppearanceSettings
+    /// What clicking the Barback icon does (the hotkey follows it).
+    public var clickAction: ClickAction
+    /// List or grid inside the drop-down panel's boxes.
+    public var dropDownLayout: DropDownLayout
+    /// The drop-down panel's group boxes, in display order. Empty until the user makes some.
+    public var groups: [ItemGroup]
 
     public init(
         autoRehideSeconds: Int = 10,
@@ -21,7 +27,10 @@ public struct BarbackSettings: Equatable, Codable, Sendable {
         showOnHover: Bool = false,
         alwaysHiddenEnabled: Bool = false,
         rehideOnAppSwitch: Bool = false,
-        appearance: AppearanceSettings = .default
+        appearance: AppearanceSettings = .default,
+        clickAction: ClickAction = .default,
+        dropDownLayout: DropDownLayout = .default,
+        groups: [ItemGroup] = []
     ) {
         self.autoRehideSeconds = autoRehideSeconds
         self.hotkey = hotkey
@@ -29,6 +38,9 @@ public struct BarbackSettings: Equatable, Codable, Sendable {
         self.alwaysHiddenEnabled = alwaysHiddenEnabled
         self.rehideOnAppSwitch = rehideOnAppSwitch
         self.appearance = appearance
+        self.clickAction = clickAction
+        self.dropDownLayout = dropDownLayout
+        self.groups = groups
     }
 
     public static let `default` = BarbackSettings()
@@ -43,6 +55,7 @@ public struct BarbackSettings: Equatable, Codable, Sendable {
         s.autoRehideSeconds = min(max(0, autoRehideSeconds), Self.maxAutoRehideSeconds)
         if let hk = hotkey, !hk.isValidGlobalHotkey { s.hotkey = .defaultToggle }
         s.appearance = appearance.sanitized()
+        s.groups = ItemGroups.sanitized(groups)
         return s
     }
 
@@ -71,6 +84,10 @@ public enum SettingsKey: String, CaseIterable, Sendable {
     case alwaysHiddenDividerStyle
     case extraDividerCount
     case extraDividerStyle
+    case clickAction
+    case dropDownLayout
+    /// The groups as one JSON document.
+    case groups
 }
 
 /// Loads and saves `BarbackSettings` in a `UserDefaults` domain.
@@ -107,7 +124,18 @@ public struct SettingsStore {
             s.appearance.extraDividerCount = defaults.integer(forKey: SettingsKey.extraDividerCount.rawValue)
         }
         if let v = value(.extraDividerStyle, DividerStyle.self) { s.appearance.extraDividerStyle = v }
+        if let v = value(.clickAction, ClickAction.self) { s.clickAction = v }
+        if let v = value(.dropDownLayout, DropDownLayout.self) { s.dropDownLayout = v }
+        s.groups = loadGroups()
         return s.sanitized()
+    }
+
+    /// Corrupt or unreadable group data means no groups, never a crash.
+    private func loadGroups() -> [ItemGroup] {
+        let key = SettingsKey.groups.rawValue
+        // A JSON string (for example from `defaults write`) is accepted as well as the Data we write.
+        guard let data = defaults.data(forKey: key) ?? defaults.string(forKey: key)?.data(using: .utf8) else { return [] }
+        return (try? JSONDecoder().decode([ItemGroup].self, from: data)) ?? []
     }
 
     public func save(_ settings: BarbackSettings) {
@@ -127,6 +155,15 @@ public struct SettingsStore {
         defaults.set(a.alwaysHiddenDivider.rawValue, forKey: SettingsKey.alwaysHiddenDividerStyle.rawValue)
         defaults.set(a.extraDividerCount, forKey: SettingsKey.extraDividerCount.rawValue)
         defaults.set(a.extraDividerStyle.rawValue, forKey: SettingsKey.extraDividerStyle.rawValue)
+        defaults.set(s.clickAction.rawValue, forKey: SettingsKey.clickAction.rawValue)
+        defaults.set(s.dropDownLayout.rawValue, forKey: SettingsKey.dropDownLayout.rawValue)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        if s.groups.isEmpty {
+            defaults.removeObject(forKey: SettingsKey.groups.rawValue)
+        } else if let data = try? encoder.encode(s.groups) {
+            defaults.set(data, forKey: SettingsKey.groups.rawValue)
+        }
     }
 
     private func bool(_ key: SettingsKey) -> Bool? {

@@ -38,12 +38,15 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     /// True once the user (click, hotkey, URL) has acted, so the delayed launch-time hide doesn't undo it.
     private var userActed = false
     private var welcomePopover: NSPopover?
+    private let panel: DropDownPanelController
 
     var onOpenSettings: (() -> Void)?
+    var onOpenPanelSettings: (() -> Void)?
     var onShowAbout: (() -> Void)?
 
-    init(model: AppModel) {
+    init(model: AppModel, items: ItemsModel) {
         self.model = model
+        panel = DropDownPanelController(model: model, items: items)
         Self.seedPositionIfNeeded(AutosaveName.chevron, relativeTo: nil)
         Self.seedPositionIfNeeded(AutosaveName.hidden, relativeTo: AutosaveName.chevron)
 
@@ -55,6 +58,11 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         hiddenSeparator.autosaveName = AutosaveName.hidden
         hiddenSeparator.isVisible = true
         super.init()
+
+        panel.anchor = { [weak self] in self?.chevron.button }
+        panel.reveal = { [weak self] action in self?.perform(action, userInitiated: true) }
+        panel.onOpenSettings = { [weak self] in self?.onOpenPanelSettings?() }
+        panel.onVisibilityChange = { [weak self] _ in self?.updateChevronAppearance() }
 
         configure(chevron.button)
         configureSeparator(hiddenSeparator, alwaysHidden: false)
@@ -99,8 +107,37 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         }
         state = next
         apply()
-        if state.isRevealed { scheduleRehide() } else { cancelRehide() }
+        if state.isRevealed {
+            // Everything the panel lists is on show now.
+            panel.close()
+            scheduleRehide()
+        } else {
+            cancelRehide()
+        }
         Log.statusBar.debug("State → \(self.state.rawValue, privacy: .public)")
+    }
+
+    /// What a plain click on the icon does, and the global hotkey with it: reveal the items in the menu bar, or with the
+    /// drop-down click action open the panel (a click while the items are revealed hides them again).
+    func performPrimaryAction(announce: Bool = false) {
+        guard model.settings.clickAction == .dropDown, !state.isRevealed else {
+            panel.close()
+            perform(.toggle, userInitiated: true, announce: announce)
+            return
+        }
+        userActed = true
+        revealedByHover = false
+        cancelHoverExitRetry()
+        panel.toggle()
+        if announce {
+            post(panel.isShown ? String(localized: "Hidden items panel opened") : String(localized: "Hidden items panel closed"))
+        }
+    }
+
+    /// Opens the panel from the menu, whatever the click action.
+    func showDropDownPanel() {
+        userActed = true
+        if !panel.isShown { panel.show() }
     }
 
     private func announceState() {
@@ -110,6 +147,10 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         case .shown: message = String(localized: "Hidden menu bar items shown")
         case .shownAll: message = String(localized: "All menu bar items shown")
         }
+        post(message)
+    }
+
+    private func post(_ message: String) {
         NSAccessibility.post(
             element: NSApp as Any,
             notification: .announcementRequested,
@@ -144,6 +185,11 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             if state.isRevealed { scheduleRehide() } else { cancelRehide() }
         }
         if old.hotkey != new.hotkey { rebuildMenu() }
+        if old.clickAction != new.clickAction {
+            panel.close()
+            updateChevronAppearance()
+            rebuildMenu()
+        }
     }
 
     /// Hover-to-show entry point.
@@ -347,16 +393,29 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     private func updateChevronAppearance() {
         guard let button = chevron.button else { return }
         let revealed = state.isRevealed
-        let label = revealed
-            ? String(localized: "Hide menu bar items")
-            : String(localized: "Show hidden menu bar items")
+        let usesPanel = model.settings.clickAction == .dropDown
+        let panelOpen = usesPanel && panel.isShown
+        let label: String
+        if revealed {
+            label = String(localized: "Hide menu bar items")
+        } else if usesPanel {
+            label = panelOpen ? String(localized: "Close hidden items panel") : String(localized: "Open hidden items panel")
+        } else {
+            label = String(localized: "Show hidden menu bar items")
+        }
         let appearance = model.settings.appearance
-        button.image = StatusIcons.toggleImage(style: appearance.toggleIcon, weight: appearance.iconWeight, revealed: revealed, label: label)
+        var image: NSImage?
+        if usesPanel, !revealed {
+            image = StatusIcons.dropDownImage(style: appearance.toggleIcon, weight: appearance.iconWeight, panelOpen: panelOpen, label: label)
+        }
+        button.image = image ?? StatusIcons.toggleImage(style: appearance.toggleIcon, weight: appearance.iconWeight, revealed: revealed, label: label)
         // Colour is a secondary cue; the glyph itself always changes with the state too.
-        let tint: NSColor? = appearance.tintWhenShowing && revealed ? .controlAccentColor : nil
+        let tint: NSColor? = appearance.tintWhenShowing && (revealed || panelOpen) ? .controlAccentColor : nil
         if button.contentTintColor != tint { button.contentTintColor = tint }
         button.setAccessibilityLabel(label)
-        var help = String(localized: "Click to show or hide menu bar items. Option-click to include always-hidden items. Right-click for options.")
+        var help = usesPanel
+            ? String(localized: "Click to see hidden items in a panel. Option-click to show every item in the menu bar, including always-hidden ones. Right-click for options.")
+            : String(localized: "Click to show or hide menu bar items. Option-click to include always-hidden items. Right-click for options.")
         if let warning = model.layoutWarning { help = warning + "\n" + help }
         button.toolTip = help
         button.setAccessibilityHelp(help)
@@ -458,7 +517,12 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             showMenu(from: sender)
             return
         }
-        perform(flags.contains(.option) ? .toggleAll : .toggle, userInitiated: true)
+        // Barback's own separators and dividers share this action; only the icon opens the panel.
+        if sender === chevron.button, !flags.contains(.option) {
+            performPrimaryAction()
+        } else {
+            perform(flags.contains(.option) ? .toggleAll : .toggle, userInitiated: true)
+        }
     }
 
     private func showMenu(from button: NSStatusBarButton) {
@@ -562,13 +626,19 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             action: #selector(toggleClicked), keyEquivalent: ""
         )
         toggle.target = self
+        let panelEntry = NSMenuItem(title: String(localized: "Open Drop-Down Panel"), action: #selector(panelClicked), keyEquivalent: "")
+        panelEntry.target = self
+        // The hotkey does what a click does, so the shortcut is listed on that entry.
+        let hotkeyEntry = model.settings.clickAction == .dropDown && !revealed ? panelEntry : toggle
         if let combo = model.settings.hotkey, let key = combo.menuKeyEquivalent {
             // Shown for reference; the global hotkey does the real work.
-            toggle.keyEquivalent = key
-            toggle.keyEquivalentModifierMask = NSEvent.ModifierFlags(rawValue: combo.modifiers.cocoaFlags)
+            hotkeyEntry.keyEquivalent = key
+            hotkeyEntry.keyEquivalentModifierMask = NSEvent.ModifierFlags(rawValue: combo.modifiers.cocoaFlags)
         }
         setSymbol(toggle, revealed ? "eye.slash" : "eye")
+        setSymbol(panelEntry, "chevron.down.square")
         menu.addItem(toggle)
+        menu.addItem(panelEntry)
 
         let showAll = NSMenuItem(title: String(localized: "Show Always-Hidden Items"), action: #selector(showAllClicked), keyEquivalent: "")
         showAll.target = self
@@ -613,6 +683,10 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     }
     @objc private func settingsClicked() { onOpenSettings?() }
     @objc private func toggleClicked() { perform(.toggle, userInitiated: true) }
+    @objc private func panelClicked() {
+        // Wait for the menu to finish closing so the panel can anchor to the chevron.
+        DispatchQueue.main.async { [weak self] in self?.showDropDownPanel() }
+    }
     @objc private func showAllClicked() {
         perform(state == .shownAll ? .hide : .showAll, userInitiated: true)
     }
