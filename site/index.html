@@ -384,7 +384,7 @@
       <div class="install-cols">
         <div class="install-col">
           <h3>Download</h3>
-          <p>Prefer a zip? Grab <code>Barback-0.1.0.zip</code> and its <code>.sha256</code> from <a href="https://github.com/MrAshRhodes/barback/releases/latest">Releases</a>, check it with <code>shasum -a 256 -c</code>, then move Barback.app to Applications.</p>
+          <p>Prefer a zip? Grab the versioned zip and its <code>.sha256</code> from <a href="https://github.com/MrAshRhodes/barback/releases/latest">Releases</a>, check it with <code>shasum -a 256 -c</code>, then move Barback.app to Applications.</p>
           <p>Update with <code>brew upgrade --cask barback</code>.</p>
         </div>
         <div class="install-col">
@@ -393,13 +393,13 @@
             <li>macOS 14 Sonoma or later</li>
             <li>Apple silicon or Intel</li>
             <li>About 1.8 MB on disk</li>
-            <li>No permissions required</li>
+            <li>No permissions required for core hiding</li>
           </ul>
         </div>
         <div class="install-col">
           <h3>The honest bit</h3>
-          <p>Barback is ad-hoc signed, not notarized. The Homebrew cask clears the quarantine flag for you. If macOS blocks a manual download, right-click the app and choose Open (macOS 14), or use System Settings → Privacy &amp; Security → Open Anyway (macOS 15 and later). Or clear the flag yourself:</p>
-          <p class="cmd"><code>xattr -dr com.apple.quarantine /Applications/Barback.app</code></p>
+          <p>The new release pipeline requires Developer ID signing and Apple notarization. Versions through 0.2.1 were ad-hoc signed; check your download's release notes. Do not disable Gatekeeper or remove quarantine for a rejected download.</p>
+          <p>Opening items in the optional panel requires Accessibility. On the first upgrade from an ad-hoc build, remove the old Barback entry in System Settings → Privacy &amp; Security → Accessibility, then add and enable the new app.</p>
         </div>
       </div>
       <p class="tip"><strong>First round:</strong> hold <kbd>⌘</kbd> and drag the icons you want gone to the left of the <span class="sym">│</span>, then click the chevron. Need a refresher later? Right-click the chevron and choose Getting Started.</p>

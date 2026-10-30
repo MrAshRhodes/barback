@@ -16,14 +16,6 @@ cask "barback" do
 
   app "Barback.app"
 
-  # Barback is signed ad-hoc rather than notarized, so Gatekeeper would refuse to open a quarantined
-  # copy. Clearing the quarantine flag keeps `brew install --cask` a one-step install.
-  postflight_steps do
-    run "/usr/bin/xattr",
-        args:         ["-dr", "com.apple.quarantine", "{{appdir}}/Barback.app"],
-        must_succeed: false
-  end
-
   # "Launch at login" uses SMAppService.mainApp; macOS drops that registration with the app bundle.
   uninstall quit: "io.github.mrashrhodes.barback"
 
@@ -35,8 +27,10 @@ cask "barback" do
   ]
 
   caveats <<~EOS
-    Barback is signed ad-hoc and is not notarized by Apple.
-    It needs no Screen Recording or Accessibility permission.
+    Core hiding needs no Screen Recording or Accessibility permission.
+    Opening items from the optional drop-down panel requires Accessibility.
+    When upgrading from an ad-hoc build, remove the old Barback entry in
+    System Settings > Privacy & Security > Accessibility and add the new app.
 
     To hide a menu bar item, hold Command (⌘) and drag it to the left of
     Barback's separator, then click the Barback chevron (or press ⌃⌥⌘B)

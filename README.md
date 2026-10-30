@@ -39,7 +39,9 @@ cd ~/Downloads
 shasum -a 256 -c "Barback-<version>.zip.sha256"   # must print "Barback-<version>.zip: OK"
 ```
 
-Then extract the zip and move `Barback.app` to `/Applications`. Barback is signed ad-hoc, not notarized. The Homebrew cask clears the quarantine flag for you; for a verified manual download that macOS refuses to open, run `xattr -dr com.apple.quarantine /Applications/Barback.app`.
+Then extract the zip and move `Barback.app` to `/Applications`. The new release pipeline requires Developer ID signing and Apple notarization, with a stapled ticket for offline verification. Versions through **0.2.1** were ad-hoc signed; they do not gain notarization retroactively. Check the release notes for the version you download. Do not remove quarantine or disable Gatekeeper to work around a rejected download.
+
+**First upgrade from an ad-hoc build:** quit Barback and replace the app. If you use Accessibility for item identification or the drop-down panel, remove the old Barback entry in **System Settings → Privacy & Security → Accessibility**, add `/Applications/Barback.app` again and enable it, then reopen Barback. The signing identity changes once during this migration; future releases keep the same bundle identifier and Developer ID team.
 
 To update: `brew update && brew upgrade --cask barback`.
 

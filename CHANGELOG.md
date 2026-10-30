@@ -7,6 +7,11 @@ See [GitHub Releases](https://github.com/MrAshRhodes/barback/releases) for downl
 
 ## [Unreleased]
 
+### Fixed
+
+- Add a Developer ID signing and notarization path with hardened runtime, secure timestamps, stapled tickets, and verification of extracted release archives. Reject wrong-team signatures and failed notarization instead of distributing an ad-hoc fallback.
+- Preserve quarantine in the Homebrew cask and document the one-time Accessibility regrant when upgrading from ad-hoc releases through 0.2.1. Future production builds retain the bundle identifier and signing team.
+
 ## [0.2.1] - 2026-10-30
 
 ### Fixed
