@@ -15,6 +15,8 @@ Continue only if the command reports `Barback-@VERSION@.zip: OK`. If verificatio
 
 This release is Developer ID signed and notarized by Apple, with the ticket stapled to the app. Leave quarantine enabled; no Gatekeeper bypass is needed. If macOS rejects the download, stop and report the error rather than disabling its protections.
 
+Alternatively, download `Barback-@VERSION@.dmg` and `Barback-@VERSION@.dmg.sha256`, verify with `shasum -a 256 -c "Barback-@VERSION@.dmg.sha256"`, then open the disk image and drag Barback to Applications. The DMG is also signed, notarized and stapled.
+
 Core hiding needs **no** Screen Recording or Accessibility permission. The optional drop-down panel requires Accessibility to open an item's menu. To hide an item, hold ⌘ and drag it to the left of Barback's separator; click the chevron or press ⌃⌥⌘B to show or hide it.
 
 ## Update an existing installation

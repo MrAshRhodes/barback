@@ -2,9 +2,11 @@
 
 ## Status
 
-Local Developer ID signing, notarization, stapling and quarantine-preserving verification work. The `release` GitHub environment is configured for **tags matching `v*` only**, with the five environment secrets below.
+Local and hosted release packaging require Developer ID signing, notarization, stapling and quarantine-preserving verification. The `release` GitHub environment is configured for **tags matching `v*` only**, with the five environment secrets below.
 
-**Hosted CI credential import is blocked pending a secret-handling decision.** The current policy forbids signing secrets in environment variables, process arguments and temporary scripts. The conventional GitHub Actions import path uses step environment variables and password arguments to Apple's keychain commands. No exception has been approved. The release workflow therefore stops explicitly before building or publishing a new release; it does not fall back to ad-hoc signing. Do not remove that gate until an approved import path and unconditional credential cleanup are implemented.
+The hosted workflow follows Glint's approved approach on an ephemeral macOS runner. Signing secrets are scoped to the import step's environment; `Scripts/import_signing_identity.sh` creates a temporary keychain with a random password, imports the existing PKCS#12 identity and selects a valid Developer ID Application certificate for team `TB3Z5R7SY8`. Apple's `security` commands receive the required passwords as arguments, with shell tracing disabled. The decoded PKCS#12 file is removed immediately after import.
+
+The notary API key is decoded into a runner-temporary file with `umask 077`, then checked before building. Packaging receives only the key path, key ID and issuer ID. Two `if: always()` steps remove the notary key and signing keychain and restore the keychain search list before publication, including after failure. Failed import, notarization, verification or cleanup blocks publication; there is no ad-hoc fallback. Never print secrets or enable shell tracing in these steps.
 
 PR CI runs credential-free signing tests and ad-hoc development builds. It never references the `release` environment or signing secrets.
 
@@ -83,4 +85,4 @@ The final-version `0.2.2` artifacts (build 9) were also signed, notarized and ve
 - ZIP SHA-256: `b38901997edf2dd6d3588332731cf96ffdd5645036f6acc01cf419720776e61c`.
 - The generated Homebrew cask pins that exact ZIP and does not remove quarantine.
 
-Before a future hosted release, complete the approved credential import, use a temporary keychain and protected runner key file, restore any modified keychain search list, and delete imported credentials with `if: always()` even after failure. Obtain separate approval before pushing a version tag, publishing a release or updating the Homebrew tap. Never replace published release assets.
+For a hosted release, commit the version and changelog, then push the matching `v*` tag after release approval. The workflow publishes both universal ZIP and DMG assets and their checksums only after verification and credential cleanup. The separate tap job pins the published ZIP without removing quarantine. Never replace published release assets; cut a new version instead.

@@ -50,10 +50,13 @@ Sources/Barback            App shell: AppDelegate, status items, hotkey, hover m
                            drop-down panel (DropDownPanelWindow/-Controller/-View)
 Tests/BarbackCoreTests     Unit tests for BarbackCore
 Tests/BarbackTests         Native panel controls and settings persistence, using isolated defaults
+Tests/SigningTests        Credential-free signing, notarization and temporary-keychain tests
 Resources/                 Info.plist template, Barback.entitlements, AppIcon.icns
 Scripts/                   build_app.sh, package_release.sh, render_cask.sh, update_tap.sh,
+                           import_signing_identity.sh, notarize.sh, verify_signature.sh,
                            changelog.sh, swiftw.sh, make_icon.swift
 packaging/homebrew/        barback.rb.tmpl (the Homebrew cask template)
+packaging/signing/         Developer ID requirements and release credential references
 .github/workflows/         ci.yml (build + test), release.yml (tag -> GitHub release + tap)
 ```
 
@@ -68,7 +71,7 @@ packaging/homebrew/        barback.rb.tmpl (the Homebrew cask template)
 
 ## Releasing
 
-See [Release signing](packaging/signing/README.md) for credential references, verification evidence and the current hosted-CI import blocker. Do not tag a release until that blocker is resolved.
+See [Release signing](packaging/signing/README.md) for credential references, verification evidence and hosted-CI setup. The tag-only `release` environment supplies credentials to the hosted workflow using the same temporary-keychain approach as Glint; missing or invalid credentials stop publication.
 
 Local `make app`, `make zip` and `make dmg` remain ad-hoc development builds by default; do not distribute them as production releases. Production packaging requires the existing Developer ID Application identity and a notarytool Keychain profile:
 
@@ -78,7 +81,7 @@ BARBACK_NOTARY_PROFILE="<existing Keychain profile>" \
 Scripts/package_release.sh --version X.Y.Z --formats zip,dmg --require-universal --notarize
 ```
 
-These variables contain an identity and profile name, not private keys or passwords. Keep credentials in Keychain, never in source control, logs or command arguments. Alternatively, notarization accepts `BARBACK_NOTARY_KEY_PATH`, `BARBACK_NOTARY_KEY_ID` and `BARBACK_NOTARY_ISSUER_ID`; the path points to a protected `.p8` file, not its contents.
+These local variables contain an identity and profile name, not private keys or passwords. Keep local credentials in Keychain and never commit or log them. Alternatively, notarization accepts `BARBACK_NOTARY_KEY_PATH`, `BARBACK_NOTARY_KEY_ID` and `BARBACK_NOTARY_ISSUER_ID`; the path points to a protected `.p8` file, not its contents.
 
 The app must satisfy `packaging/signing/designated-requirement.txt`: bundle identifier `io.github.mrashrhodes.barback`, Apple Developer ID trust chain and team `TB3Z5R7SY8`. Keep that identity stable across releases. The current bundle has one executable; any future nested executable must be signed inside-out before the app. Signing must retain hardened runtime and secure timestamps in every architecture.
 
@@ -88,7 +91,7 @@ The first upgrade from an ad-hoc build requires a new Accessibility grant. A sta
 
 1. `make prepare-release VERSION=X.Y.Z`, review the diff, commit and push to `main`.
 2. Tag and push: `git tag vX.Y.Z && git push origin vX.Y.Z`.
-3. The **Release** workflow tests, builds a universal app, publishes the GitHub release with `Barback-X.Y.Z.zip` + `.sha256` and the changelog section as notes, and, if the `TAP_GITHUB_TOKEN` secret is set, updates `Casks/barback.rb` in [MrAshRhodes/homebrew-tap](https://github.com/MrAshRhodes/homebrew-tap).
+3. The **Release** workflow tests without credentials, imports the existing Developer ID identity into a temporary keychain, and builds, signs and notarizes the universal app and DMG. It removes credentials before publishing `Barback-X.Y.Z.zip`, `Barback-X.Y.Z.dmg` and both `.sha256` files with the changelog section as notes. If the `TAP_GITHUB_TOKEN` secret is set, it then updates `Casks/barback.rb` in [MrAshRhodes/homebrew-tap](https://github.com/MrAshRhodes/homebrew-tap).
 4. Without that secret, publish the cask yourself once the release exists: `Scripts/update_tap.sh --version X.Y.Z --from-release` (add `--dry-run` first to preview).
 
 Published release assets are never replaced: the cask pins the zip's SHA-256, so cut a new version instead.

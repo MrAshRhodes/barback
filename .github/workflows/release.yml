@@ -9,7 +9,7 @@ on:
     tags: ['v*']
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: release-${{ github.ref_name }}
@@ -24,13 +24,17 @@ jobs:
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     environment: release
     runs-on: macos-latest
-    timeout-minutes: 45
+    permissions:
+      contents: write
+    timeout-minutes: 90
     outputs:
       version: ${{ steps.version.outputs.version }}
       prerelease: ${{ steps.version.outputs.prerelease }}
     steps:
       - name: Check out the repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
 
       - name: Resolve the version
         id: version
@@ -56,7 +60,7 @@ jobs:
           exists=false
           if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
             exists=true
-            echo "::notice title=Release already published::$GITHUB_REF_NAME already has a release, so nothing is rebuilt or replaced. Delete the release and tag to rebuild, or cut a new version."
+            echo "::notice title=Release already published::$GITHUB_REF_NAME already has a release, so nothing is rebuilt or replaced. Cut a new version to publish new artifacts."
           fi
           {
             echo "version=$version"
@@ -85,25 +89,53 @@ jobs:
           xcodebuild -version
           swift --version
 
-      # Do not consume signing secrets through env/argv without approval under the
-      # credential-handling policy. See packaging/signing/README.md.
-      - name: Require an approved CI credential import path
-        if: steps.version.outputs.exists != 'true'
-        run: |
-          echo "::error::Release signing is blocked: approve and implement a CI credential import path consistent with the signing secret policy. See packaging/signing/README.md."
-          exit 1
-
       - name: Test
         if: steps.version.outputs.exists != 'true'
         run: |
           make signing-test
           Scripts/swiftw.sh test
 
+      - name: Import the signing identity
+        id: signing
+        if: steps.version.outputs.exists != 'true'
+        env:
+          BARBACK_SIGNING_P12_BASE64: ${{ secrets.BARBACK_SIGNING_P12_BASE64 }}
+          BARBACK_SIGNING_P12_PASSWORD: ${{ secrets.BARBACK_SIGNING_P12_PASSWORD }}
+        run: Scripts/import_signing_identity.sh > /dev/null
+
+      - name: Prepare notarization credentials
+        if: steps.version.outputs.exists != 'true'
+        env:
+          BARBACK_NOTARY_KEY_P8_BASE64: ${{ secrets.BARBACK_NOTARY_KEY_P8_BASE64 }}
+          BARBACK_NOTARY_KEY_ID: ${{ secrets.BARBACK_NOTARY_KEY_ID }}
+          BARBACK_NOTARY_ISSUER_ID: ${{ secrets.BARBACK_NOTARY_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          umask 077
+          : "${BARBACK_NOTARY_KEY_P8_BASE64:?Missing notarization key secret}"
+          export BARBACK_NOTARY_KEY_PATH="$RUNNER_TEMP/barback-notary.p8"
+          printf '%s' "$BARBACK_NOTARY_KEY_P8_BASE64" | base64 --decode > "$BARBACK_NOTARY_KEY_PATH"
+          Scripts/notarize.sh --check-credentials
+
       - name: Build and package
         if: steps.version.outputs.exists != 'true'
         env:
           VERSION: ${{ steps.version.outputs.version }}
-        run: Scripts/package_release.sh --version "$VERSION" --formats zip --require-universal --notarize --build-number "$GITHUB_RUN_NUMBER"
+          BARBACK_SIGN_IDENTITY: ${{ steps.signing.outputs.identity }}
+          BARBACK_NOTARY_KEY_PATH: ${{ runner.temp }}/barback-notary.p8
+          BARBACK_NOTARY_KEY_ID: ${{ secrets.BARBACK_NOTARY_KEY_ID }}
+          BARBACK_NOTARY_ISSUER_ID: ${{ secrets.BARBACK_NOTARY_ISSUER_ID }}
+        run: Scripts/package_release.sh --version "$VERSION" --formats zip,dmg --require-universal --notarize --build-number "$GITHUB_RUN_NUMBER"
+
+      - name: Remove notarization credentials
+        if: always()
+        run: rm -f "$RUNNER_TEMP/barback-notary.p8"
+
+      - name: Remove the signing keychain
+        if: always() && steps.signing.outputs.keychain != ''
+        env:
+          KEYCHAIN: ${{ steps.signing.outputs.keychain }}
+        run: Scripts/import_signing_identity.sh --cleanup "$KEYCHAIN"
 
       - name: Publish the GitHub release
         if: steps.version.outputs.exists != 'true'
@@ -115,6 +147,8 @@ jobs:
           assets=(
             "dist/Barback-$VERSION.zip"
             "dist/Barback-$VERSION.zip.sha256"
+            "dist/Barback-$VERSION.dmg"
+            "dist/Barback-$VERSION.dmg.sha256"
           )
           flags=()
           if [[ "$PRERELEASE" == true ]]; then
@@ -148,7 +182,9 @@ jobs:
       cancel-in-progress: false
     steps:
       - name: Check out the repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
 
       - name: Check for a Homebrew tap token
         id: tap

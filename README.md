@@ -41,6 +41,8 @@ shasum -a 256 -c "Barback-<version>.zip.sha256"   # must print "Barback-<version
 
 Then extract the zip and move `Barback.app` to `/Applications`. The new release pipeline requires Developer ID signing and Apple notarization, with a stapled ticket for offline verification. Versions through **0.2.1** were ad-hoc signed; they do not gain notarization retroactively. Check the release notes for the version you download. Do not remove quarantine or disable Gatekeeper to work around a rejected download.
 
+Prefer a disk image? Download the `.dmg` and `.dmg.sha256` pair instead, verify it with `shasum -a 256 -c "Barback-<version>.dmg.sha256"`, then open the image and drag `Barback.app` to Applications. The DMG is separately signed, notarized and stapled.
+
 **First upgrade from an ad-hoc build:** quit Barback and replace the app. If you use Accessibility for item identification or the drop-down panel, remove the old Barback entry in **System Settings → Privacy & Security → Accessibility**, add `/Applications/Barback.app` again and enable it, then reopen Barback. The signing identity changes once during this migration; future releases keep the same bundle identifier and Developer ID team.
 
 To update: `brew update && brew upgrade --cask barback`.

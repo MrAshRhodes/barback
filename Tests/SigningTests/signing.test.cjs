@@ -133,6 +133,45 @@ test("credential preflight propagates authentication failure", (t) => {
   assert.doesNotMatch(f.calls(), /notarytool submit/);
 });
 
+for (const preflight of [false, true]) {
+  test(`API key authentication supports ${preflight ? "credential preflight" : "submission"}`, (t) => {
+    const f = fixture(t);
+    const key = path.join(path.dirname(f.app), "notary.p8");
+    writeFileSync(key, "test-key", { mode: 0o600 });
+    Object.assign(f.env, {
+      BARBACK_NOTARY_PROFILE: "", BARBACK_NOTARY_KEY_PATH: key,
+      BARBACK_NOTARY_KEY_ID: "test-key-id", BARBACK_NOTARY_ISSUER_ID: "test-issuer",
+    });
+    const result = f.run("notarize.sh", preflight ? ["--check-credentials"] : [f.app]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.ok(f.calls().includes(`--key ${key} --key-id test-key-id --issuer test-issuer`));
+    assert.doesNotMatch(f.calls(), /--keychain-profile/);
+    if (preflight) {
+      assert.match(f.calls(), /notarytool history/);
+      assert.doesNotMatch(f.calls(), /notarytool submit|stapler staple/);
+    } else {
+      assert.match(f.calls(), /notarytool submit/);
+      assert.match(f.calls(), /stapler staple/);
+    }
+  });
+}
+
+for (const missing of ["file", "issuer"]) {
+  test(`missing API key ${missing} fails before contacting Apple`, (t) => {
+    const f = fixture(t);
+    Object.assign(f.env, {
+      BARBACK_NOTARY_PROFILE: "",
+      BARBACK_NOTARY_KEY_PATH: path.join(path.dirname(f.app), "missing.p8"),
+      BARBACK_NOTARY_KEY_ID: "test-key-id",
+      BARBACK_NOTARY_ISSUER_ID: missing === "issuer" ? "" : "test-issuer",
+    });
+    const result = f.run("notarize.sh", ["--check-credentials"]);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, missing === "issuer" ? /BARBACK_NOTARY_ISSUER_ID/ : /key file is missing or empty/);
+    assert.equal(f.calls(), "");
+  });
+}
+
 test("production packaging rejects ad-hoc signing before building", (t) => {
   const f = fixture(t);
   f.env.BARBACK_SIGN_IDENTITY = "-";
