@@ -43,8 +43,10 @@ Every SwiftPM call goes through `Scripts/swiftw.sh`. With Xcode installed it is 
 ```
 Package.swift              BarbackCore (library), Barback (executable), BarbackCoreTests
 Sources/BarbackCore        Pure, testable logic: settings, section layout, rehide policy,
-                           menu bar item parsing, hotkeys, notch geometry
-Sources/Barback            App shell: AppDelegate, status items, hotkey, hover monitor, Settings UI
+                           menu bar item parsing, hotkeys, notch geometry, item groups,
+                           drop-down panel placement
+Sources/Barback            App shell: AppDelegate, status items, hotkey, hover monitor, Settings UI,
+                           drop-down panel (DropDownPanelWindow/-Controller/-View)
 Tests/BarbackCoreTests     Unit tests for BarbackCore
 Resources/                 Info.plist template, Barback.entitlements, AppIcon.icns
 Scripts/                   build_app.sh, package_release.sh, render_cask.sh, update_tap.sh,

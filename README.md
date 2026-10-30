@@ -19,7 +19,7 @@ Barback is an independent project, released under the MIT license. It is not aff
 ## Why Barback
 
 - **Fast.** Showing and hiding is a single layout change of Barback's own status items: no screen capturing, no animation polling, no background loops. It's instant, and idle CPU stays at ~0%.
-- **No special permissions.** Hiding, showing, the hotkey and hover never need Screen Recording or Accessibility access. The global hotkey uses the Carbon hotkey API, and the item list reads window metadata only. Accessibility is optional and used for one thing: showing app names in the Settings › Items list on macOS 26 (see below).
+- **No special permissions.** Hiding, showing, the hotkey and hover never need Screen Recording or Accessibility access. The global hotkey uses the Carbon hotkey API, and the item list reads window metadata only. Accessibility is optional and used for two things: showing app names in the Settings › Items list on macOS 26, and, if you choose the drop-down panel, opening a hidden item from it (see below).
 - **No network, no telemetry.** Barback makes no network connections and collects nothing.
 - **Small and auditable.** One SwiftPM package, no third-party dependencies, MIT-licensed.
 - **Feels native.** Built to the macOS Human Interface Guidelines (see [Design](#design)).
@@ -52,6 +52,7 @@ Barback adds a **chevron** to your menu bar and a thin **separator** to its left
 3. **Always-hidden items.** Enable the second (always-hidden) separator in Settings and ⌘-drag items to its left. **Option-click** the chevron to reveal them too.
 4. **Menu.** Right-click the chevron for Show/Hide, Show Always-Hidden, Settings… (⌘,), About, Getting Started and Quit.
 5. **Make it yours.** In Settings › Appearance, pick a style or choose the icon (chevron, eye, wine glass, mug and more), its weight, separator styles (line, dashed, dot, double line, chevron or invisible) and up to three extra dividers for grouping items.
+6. **Optional drop-down panel.** In Settings › Panel, set **Click Barback to** *Open a drop-down panel*. Clicking the chevron (or pressing the hotkey) then opens a panel under the icon instead of widening the menu bar. See below.
 
 The first time Barback starts, a short tip under the chevron explains the basics; open it again with **Getting Started** in the menu.
 
@@ -62,9 +63,19 @@ Hidden items re-hide automatically after 10 seconds (configurable, or never), bu
 - **General**: launch at login, auto-rehide delay, show on hover, hide when switching apps, always-hidden section, global hotkey.
 - **Appearance**: a live preview plus styles (Classic, Minimal, Cocktail, Eye, Arrows), the toggle icon and its weight, an optional accent tint while hidden items are showing, separator styles for each section, and extra dividers. These change only Barback's own items. An invisible separator still leaves a narrow gap you can ⌘-drag.
 - **Items**: a read-only list of every menu bar item, the process that owns its window, its section and whether it is currently on screen. It is scanned only when you open the tab or click Refresh (⌘R), off the main thread. On a Mac with a notch, items that would sit behind the notch are flagged so you can hide something else to make room. On macOS 26 Tahoe, Control Center hosts most items' windows, so their source app can't be read from window metadata and they're listed as *Unidentified Item*; if you choose to allow Accessibility access, Barback matches them to app names.
+- **Panel**: what clicking Barback does (show the items in the menu bar, the default, or open the drop-down panel), the panel's layout (list or grid), and up to 12 named groups with an icon each.
 - **About**: version, license and links.
 
 > **Tip:** if the separator ends up to the right of the chevron, Barback won't expand it (that would hide the chevron too) and shows a hint. ⌘-drag the separator back to the left of the chevron.
+
+### Drop-down panel (optional)
+
+With **Click Barback to** set to *Open a drop-down panel* (Settings › Panel; the default is still to show the items in the menu bar), clicking the chevron opens a small panel directly under it, like the ones in Control Center. The global hotkey follows the click action, so it opens the panel too; Option-click still reveals everything in the menu bar, including always-hidden items.
+
+- **Lists the hidden items** as a list (icon and name) or a grid (icons only); switch with the button in the panel's header, or in Settings › Panel. The gear button opens the Panel settings.
+- **Groups.** Right-click an item and choose **Move to Group** (or **New Group…**) to sort it into a named group. Each group is a box in the panel, followed by *Other* for everything not yet grouped. Groups are managed in Settings › Panel: rename, change the icon, reorder or delete them. An always-hidden item can't be put in a group.
+- **Click an item** to open its menu from the panel. Barback reveals the item for a moment and presses it through the Accessibility API, which needs the Accessibility permission (the panel shows a hint at the bottom until it is granted). Without it, clicking just reveals the items in the menu bar, as before.
+- **Look and behavior.** The panel is a borderless window whose right edge lines up with the Barback icon, a few points below it, kept inside the screen. On macOS 26 Tahoe it is made of Liquid Glass; on macOS 14 and 15 it uses a system material instead. It closes when you click elsewhere, press Esc, click the icon again, switch Space or app, or the screen layout changes. Reduce Transparency gives it a solid background, Increase Contrast adds an outline and Reduce Motion drops the slide. The items are reachable with the keyboard and VoiceOver.
 
 ### Automation
 
@@ -90,9 +101,9 @@ Barback uses the same well-known technique as Hidden Bar, Dozer and Ice: it owns
 Barback follows the macOS Human Interface Guidelines:
 
 - **Status items** use SF Symbols as template images, so they adapt to light and dark menu bars, accent tinting and Increase Contrast.
-- **Settings** (**⌘,**) is a single window with standard toolbar tabs (General, Appearance, Items, About), each a SwiftUI grouped form (`.formStyle(.grouped)`), like System Settings-era apps.
-- **Accessibility**: status items and controls carry VoiceOver labels; only system colors, fonts and controls are used, so light/dark appearance, Increase Contrast and Reduce Transparency are honored automatically (separators become fully opaque with Increase Contrast). Showing and hiding is instant, with no motion to reduce, and the getting-started popover doesn't animate when Reduce Motion is on. Every toggle icon changes shape with its state, so the optional accent tint is never the only cue.
-- **Liquid Glass**: on macOS 26 Tahoe, Barback's menus, toolbar and controls pick up the system's Liquid Glass design because they are standard AppKit/SwiftUI components built against the current SDK, and Settings' buttons explicitly use the `.glass` / `.glassProminent` button styles (behind `#available(macOS 26, *)`, falling back to `.bordered` / `.borderedProminent` on macOS 14 and 15). Menu items get leading SF Symbols on macOS 26 only, as that release's HIG recommends.
+- **Settings** (**⌘,**) is a single window with standard toolbar tabs (General, Appearance, Items, Panel, About), each a SwiftUI grouped form (`.formStyle(.grouped)`), like System Settings-era apps.
+- **Accessibility**: status items and controls carry VoiceOver labels; only system colors, fonts and controls are used, so light/dark appearance, Increase Contrast and Reduce Transparency are honored automatically (separators become fully opaque with Increase Contrast). Showing and hiding is instant, with no motion to reduce, and the getting-started popover doesn't animate when Reduce Motion is on. Every toggle icon changes shape with its state, so the optional accent tint is never the only cue. The optional drop-down panel is a labeled dialog that Esc closes, with every item and button reachable by keyboard and VoiceOver.
+- **Liquid Glass**: on macOS 26 Tahoe, Barback's menus, toolbar and controls pick up the system's Liquid Glass design because they are standard AppKit/SwiftUI components built against the current SDK, and Settings' buttons explicitly use the `.glass` / `.glassProminent` button styles (behind `#available(macOS 26, *)`, falling back to `.bordered` / `.borderedProminent` on macOS 14 and 15). Menu items get leading SF Symbols on macOS 26 only, as that release's HIG recommends. The drop-down panel is an `NSGlassEffectView` with rounded corners holding SwiftUI `glassEffect` tiles in a `GlassEffectContainer` (also behind `#available(macOS 26, *)`, falling back to an `NSVisualEffectView` popover material with `.thinMaterial` tiles on macOS 14 and 15).
 - **App icon** follows the macOS 26 icon grid (824 × 824 continuous-corner body on a 1024 × 1024 canvas) with soft, layered lighting and a single motif, rendered at every size from 16 to 1024 px.
 
 ## Barback vs Bartender 6
@@ -108,9 +119,10 @@ Barback was inspired by studying how Bartender behaves. It is deliberately much 
 | Rearrange items without ⌘-drag | ❌ (use ⌘-drag) | ✅ |
 | Custom icon, separator styles and dividers | ✅ (Barback's own items) | ✅ |
 | Automation | ✅ `barback://` URL scheme | ✅ AppleScript, URL scheme, Shortcuts |
-| Triggers, presets/profiles, quick search, menu bar styling, item groups | ❌ | ✅ |
+| Item groups | ✅ named groups in an optional drop-down panel | ✅ |
+| Triggers, presets/profiles, quick search, menu bar styling | ❌ | ✅ |
 | Screen Recording permission | Not needed | Requested for its item images and layout features |
-| Accessibility permission | Optional (app names in the Items list only) | Requested to move and click items |
+| Accessibility permission | Optional (app names in the Items list, opening items from the drop-down panel) | Requested to move and click items |
 | How hiding works | Expands its own separator status item | The same separator technique, plus automatic rearranging of other apps' items |
 | Background activity when idle | None (event-driven) | Varies with enabled features |
 | Minimum macOS | 14 Sonoma | See vendor's site |
@@ -124,7 +136,7 @@ Before writing Barback we studied Bartender 6 (6.6.2 on macOS 26) from the outsi
 - **Hiding itself is cheap.** Bartender hides items the same way Hidden Bar, Ice and Barback do: by widening one of its own separator status items. That needs no permission and no background work, so Barback copies it.
 - **The heavy parts are the extras.** Automatic rearranging works by posting synthetic ⌘-drag mouse events while briefly intercepting the user's clicks; the Bartender Bar, search and item identification on Tahoe rely on capturing images of menu bar items (Screen Recording); app names come from Accessibility queries to every menu-bar app; and optional menu bar styling redraws on a timer. Bartender's own support pages and release notes acknowledge mouse movement, CPU and WindowServer load from these paths, and many releases tune them.
 - **What Barback does differently.** It's event-driven: the only timers are one-shot (auto-rehide, hover dwell and the 0.4 s hover exit delay, the same delay Bartender uses), with no polling loops, screen capture, event taps, synthetic events, private APIs, helper processes or network access. You arrange items yourself with ⌘-drag, which macOS remembers.
-- **What Barback leaves out** on purpose: automatic arranging, the secondary bar, search, triggers, presets, groups, spacing changes, menu bar styling (Barback only restyles its own icons) and widgets. These all need the permissions and machinery above.
+- **What Barback leaves out** on purpose: automatic arranging, the secondary bar, search, triggers, presets, spacing changes, menu bar styling (Barback only restyles its own icons) and widgets. These all need the permissions and machinery above.
 - **macOS 26 caveat.** On Tahoe, Control Center owns the windows of most menu bar items, so any tool reading window metadata sees "Control Center" rather than the real app. Bartender works around this with image hashing and an Accessibility helper; Barback labels such items honestly and only uses Accessibility if you opt in.
 
 ## Build from source

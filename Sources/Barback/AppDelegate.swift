@@ -17,8 +17,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.accessory)
         NSApp.mainMenu = makeMainMenu()
 
-        let statusBar = StatusBarController(model: model)
+        let statusBar = StatusBarController(model: model, items: itemsModel)
         statusBar.onOpenSettings = { [weak self] in self?.showSettings() }
+        statusBar.onOpenPanelSettings = { [weak self] in self?.openSettings(tab: .panel) }
         statusBar.onShowAbout = { [weak self] in self?.showAboutPanel() }
         self.statusBar = statusBar
         itemsModel.statusBar = statusBar
@@ -86,7 +87,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard !model.isRecordingHotkey, let combo = model.settings.hotkey else { return }
         do {
             try hotkey.register(combo) { [weak self] in
-                self?.statusBar?.perform(.toggle, userInitiated: true, announce: true)
+                // Follows the click action: the panel with the drop-down action, otherwise the toggle.
+                self?.statusBar?.performPrimaryAction(announce: true)
             }
         } catch {
             model.hotkeyError = error.localizedDescription
@@ -100,10 +102,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Windows
 
     @objc func showSettings() {
+        openSettings(tab: nil)
+    }
+
+    func openSettings(tab: SettingsWindowController.Tab?) {
         if settingsWindow == nil {
             settingsWindow = SettingsWindowController(model: model, loginItem: loginItem, items: itemsModel)
         }
-        settingsWindow?.show()
+        settingsWindow?.show(tab: tab)
     }
 
     @objc func showAboutPanel() {

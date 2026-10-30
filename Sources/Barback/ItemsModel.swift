@@ -2,7 +2,7 @@ import AppKit
 import ApplicationServices
 import BarbackCore
 
-/// One row in Settings › Items.
+/// One row in Settings › Items, and one candidate for the drop-down panel.
 struct MenuBarItemRow: Identifiable, Hashable {
     var item: MenuBarItem
     var section: MenuBarSection
@@ -10,6 +10,10 @@ struct MenuBarItemRow: Identifiable, Hashable {
     var overlapsNotch: Bool
     /// Non-nil for Barback's own status items.
     var barbackRole: String?
+    /// Identity that survives relaunches; what groups store.
+    var key: ItemKey
+    /// Index of the display the item is on (into the scan's displays); nil when it can't be told.
+    var display: Int?
 
     var id: UInt32 { item.windowID }
     var isShown: Bool { visibility == .shown }
@@ -22,9 +26,18 @@ struct MenuBarItemRow: Identifiable, Hashable {
         }
         return item.displayName
     }
+
+    /// The name shown in the drop-down panel.
+    var panelTitle: String {
+        if barbackRole == nil, item.isSystemItem, item.detail == nil, item.resolvedName == nil, item.title == nil {
+            return String(localized: "Unidentified Item")
+        }
+        return barbackRole ?? item.panelName
+    }
 }
 
-/// On-demand snapshot of the menu bar (refreshed when the Items tab appears or Refresh is clicked; never polled).
+/// On-demand snapshot of the menu bar (refreshed when the Items tab appears, the drop-down panel opens or Refresh is
+/// clicked; never polled).
 @MainActor
 final class ItemsModel: ObservableObject {
     @Published private(set) var rows: [MenuBarItemRow] = []
@@ -43,31 +56,37 @@ final class ItemsModel: ObservableObject {
         accessibilityTrusted = AXIsProcessTrustedWithOptions(options)
     }
 
-    func refresh() {
-        guard !isRefreshing else { return }
-        isRefreshing = true
-        accessibilityTrusted = AXIsProcessTrusted()
+    /// Re-reads whether Accessibility is allowed, e.g. after the user comes back from System Settings.
+    func refreshAccessibilityStatus() {
+        let trusted = AXIsProcessTrusted()
+        if trusted != accessibilityTrusted { accessibilityTrusted = trusted }
+    }
 
-        let screens = ScreenInfo.screensWithMenuBar
-        let displays = screens.map {
+    /// Displays that show a menu bar, in CoreGraphics coordinates.
+    static func currentDisplays() -> [MenuBarDisplay] {
+        ScreenInfo.screensWithMenuBar.map {
             MenuBarDisplay(
                 frame: ScreenInfo.cgRect(fromAppKit: $0.frame),
                 notch: ScreenInfo.notch(for: $0).map(ScreenInfo.cgRect(fromAppKit:))
             )
         }
+    }
+
+    func refresh() {
+        guard !isRefreshing else { return }
+        isRefreshing = true
+        accessibilityTrusted = AXIsProcessTrusted()
+
+        let displays = Self.currentDisplays()
         let tops = displays.map(\.frame.minY)
         hasNotch = displays.contains { $0.notch != nil }
         let own = statusBar?.ownItems
         let trusted = accessibilityTrusted
-        let apps = NSWorkspace.shared.runningApplications.map { ($0.processIdentifier, $0.localizedName ?? "") }
+        let apps = RunningAppInfo.current()
 
         Task.detached(priority: .userInitiated) {
             let signpost = Log.signposter.beginInterval("Scan items", id: Log.signposter.makeSignpostID())
-            let raw = CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID) as? [[String: Any]] ?? []
-            let parsed = MenuBarItemParser.parse(raw, menuBarTops: tops)
-            let items = trusted
-                ? MenuBarItemParser.resolveNames(parsed, using: Self.accessibilityCandidates(apps: apps))
-                : parsed
+            let items = AccessibilityScanner.scan(tops: tops, trusted: trusted, apps: apps).items
             Log.signposter.endInterval("Scan items", signpost)
             await MainActor.run {
                 self.rows = Self.makeRows(items, own: own, displays: displays)
@@ -87,6 +106,7 @@ final class ItemsModel: ObservableObject {
             guard let frame else { return false }
             return abs(item.frame.maxX - frame.maxX) <= 1.5 && abs(item.frame.minY - frame.minY) <= 1.5
         }
+        let keys = ItemKeyAssigner.keys(for: items, displays: displays)
         return items.compactMap { item in
             var role: String?
             if matches(item, own?.chevron) {
@@ -107,56 +127,10 @@ final class ItemsModel: ObservableObject {
             )
             return MenuBarItemRow(item: item, section: role == nil ? placement.section : .visible,
                                   visibility: placement.visibility, overlapsNotch: placement.overlapsNotch,
-                                  barbackRole: role)
+                                  barbackRole: role,
+                                  key: keys[item.windowID] ?? ItemKey(owner: item.ownerName),
+                                  display: placement.display)
         }
         .reversed() // Right to left, matching how people read the status area.
-    }
-
-    /// Reads each app's status items via Accessibility (only when the user has granted access).
-    nonisolated private static func accessibilityCandidates(apps: [(pid_t, String)]) -> [(name: String, minX: CGFloat, width: CGFloat)] {
-        var result: [(name: String, minX: CGFloat, width: CGFloat)] = []
-        for (pid, appName) in apps where pid != getpid() {
-            let app = AXUIElementCreateApplication(pid)
-            AXUIElementSetMessagingTimeout(app, 0.1)
-            var barRef: CFTypeRef?
-            guard AXUIElementCopyAttributeValue(app, "AXExtrasMenuBar" as CFString, &barRef) == .success,
-                  let barRef, CFGetTypeID(barRef) == AXUIElementGetTypeID() else { continue }
-            let bar = barRef as! AXUIElement
-            var childrenRef: CFTypeRef?
-            guard AXUIElementCopyAttributeValue(bar, kAXChildrenAttribute as CFString, &childrenRef) == .success,
-                  let children = childrenRef as? [AXUIElement] else { continue }
-            for child in children {
-                guard let origin = point(child, kAXPositionAttribute), let size = size(child, kAXSizeAttribute) else { continue }
-                var name = appName
-                if let desc = string(child, kAXDescriptionAttribute) ?? string(child, kAXTitleAttribute),
-                   !desc.isEmpty, desc != appName {
-                    name = appName.isEmpty ? desc : "\(appName) — \(desc)"
-                }
-                result.append((name: name, minX: origin.x, width: size.width))
-            }
-        }
-        return result
-    }
-
-    nonisolated private static func string(_ el: AXUIElement, _ attr: String) -> String? {
-        var ref: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(el, attr as CFString, &ref) == .success else { return nil }
-        return ref as? String
-    }
-
-    nonisolated private static func point(_ el: AXUIElement, _ attr: String) -> CGPoint? {
-        var ref: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(el, attr as CFString, &ref) == .success, let ref,
-              CFGetTypeID(ref) == AXValueGetTypeID() else { return nil }
-        var p = CGPoint.zero
-        return AXValueGetValue(ref as! AXValue, .cgPoint, &p) ? p : nil
-    }
-
-    nonisolated private static func size(_ el: AXUIElement, _ attr: String) -> CGSize? {
-        var ref: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(el, attr as CFString, &ref) == .success, let ref,
-              CFGetTypeID(ref) == AXValueGetTypeID() else { return nil }
-        var s = CGSize.zero
-        return AXValueGetValue(ref as! AXValue, .cgSize, &s) ? s : nil
     }
 }

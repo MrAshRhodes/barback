@@ -95,6 +95,9 @@ struct GeneralSettingsView: View {
             } footer: {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Click the shortcut, then press a new key combination that includes ⌘, ⌥ or ⌃. Press Delete to remove it or Escape to cancel.")
+                    if model.settings.clickAction == .dropDown {
+                        Text("Clicking Barback opens the drop-down panel, so the shortcut opens it too. Change this in Settings › Panel.")
+                    }
                     if let error = model.hotkeyError {
                         Text(error).foregroundStyle(.red)
                     }

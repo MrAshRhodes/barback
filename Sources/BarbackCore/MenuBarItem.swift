@@ -12,6 +12,12 @@ public struct MenuBarItem: Identifiable, Hashable, Sendable {
     public var isOnScreen: Bool
     /// App name resolved by other means (e.g. Accessibility) when the window owner is a system host.
     public var resolvedName: String?
+    /// Bundle identifier of the app that really owns the item, when known.
+    public var bundleID: String?
+    /// The item's own Accessibility title or description (e.g. "Wi-Fi"), when known.
+    public var detail: String?
+    /// Process that really owns the item when it differs from the window owner (system-hosted items).
+    public var sourcePID: Int32?
 
     public var id: UInt32 { windowID }
 
@@ -22,7 +28,10 @@ public struct MenuBarItem: Identifiable, Hashable, Sendable {
         title: String? = nil,
         frame: CGRect,
         isOnScreen: Bool,
-        resolvedName: String? = nil
+        resolvedName: String? = nil,
+        bundleID: String? = nil,
+        detail: String? = nil,
+        sourcePID: Int32? = nil
     ) {
         self.windowID = windowID
         self.ownerName = ownerName
@@ -31,6 +40,9 @@ public struct MenuBarItem: Identifiable, Hashable, Sendable {
         self.frame = frame
         self.isOnScreen = isOnScreen
         self.resolvedName = resolvedName
+        self.bundleID = bundleID
+        self.detail = detail
+        self.sourcePID = sourcePID
     }
 
     /// On macOS 26 every status item window is hosted by Control Center, so the owner is not the real app.
@@ -41,6 +53,19 @@ public struct MenuBarItem: Identifiable, Hashable, Sendable {
         if let resolvedName, !resolvedName.isEmpty { return resolvedName }
         if let title, !title.isEmpty, isHostedBySystem { return title }
         return ownerName
+    }
+
+    /// True for items of the system itself, e.g. Wi-Fi or Battery, which macOS 26 hosts in Control Center.
+    public var isSystemItem: Bool {
+        if let bundleID { return MenuBarItemParser.systemHostBundleIDs.contains(bundleID) }
+        return isHostedBySystem && sourcePID == nil
+    }
+
+    /// Short name for the drop-down panel: just "Wi-Fi" for a system item (its owner is always Control Center),
+    /// "App — detail" or the app's name otherwise.
+    public var panelName: String {
+        if isSystemItem, let detail, !detail.isEmpty { return detail }
+        return displayName
     }
 
     /// True if the item is drawn on any of the given screens (CG coordinates).
@@ -60,6 +85,7 @@ public enum MenuBarItemParser {
     public static let maxItemHeight: CGFloat = 60
     public static let excludedOwners: Set<String> = ["Window Server", "WindowServer"]
     public static let systemHostOwners: Set<String> = ["Control Center", "Control Centre", "SystemUIServer"]
+    public static let systemHostBundleIDs: Set<String> = ["com.apple.controlcenter", "com.apple.systemuiserver"]
 
     // Raw CGWindowList keys (kCGWindow* constants), spelled out so tests can build dictionaries directly.
     public enum Key {
@@ -125,6 +151,27 @@ public enum MenuBarItemParser {
             }) {
                 item.resolvedName = match.name
             }
+            return item
+        }
+    }
+
+    /// Fills the name, bundle identifier, detail and real process of items that match an Accessibility item's frame.
+    public static func resolve(
+        _ items: [MenuBarItem],
+        using candidates: [AccessibilityItem],
+        tolerance: CGFloat = 2
+    ) -> [MenuBarItem] {
+        guard !candidates.isEmpty else { return items }
+        let frames = candidates.map(\.frame)
+        return items.map { item in
+            guard let index = FrameMatcher.bestMatchIndex(for: item.frame, among: frames, tolerance: tolerance)
+            else { return item }
+            let match = candidates[index]
+            var item = item
+            item.resolvedName = match.displayName
+            if let id = match.bundleID, !id.isEmpty { item.bundleID = id }
+            item.detail = match.detail
+            item.sourcePID = match.pid
             return item
         }
     }

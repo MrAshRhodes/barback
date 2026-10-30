@@ -7,6 +7,13 @@ See [GitHub Releases](https://github.com/MrAshRhodes/barback/releases) for downl
 
 ## [Unreleased]
 
+### Added
+
+- Optional drop-down panel: in Settings › Panel, set **Click Barback to** *Open a drop-down panel* to open a borderless panel under the Barback icon instead of revealing items in the menu bar. It is made of Liquid Glass on macOS 26 and a system material on macOS 14 and 15, and honors Reduce Transparency, Increase Contrast and Reduce Motion. The default is unchanged (reveal the items in the menu bar).
+- The panel lists hidden items as a list or a grid, and the global hotkey opens it when it is the click action. Option-click still reveals everything, including always-hidden items.
+- Item groups: sort hidden items into up to 12 named groups (right-click an item › **Move to Group**), shown as boxes in the panel followed by *Other*. Groups are edited in Settings › Panel.
+- Click an item in the panel to open its menu through Accessibility (optional permission). Without it, clicking reveals the items in the menu bar and the panel hints at the permission.
+
 ## [0.1.0] - 2026-10-30
 
 First public release.

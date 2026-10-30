@@ -1,12 +1,12 @@
 import AppKit
 import SwiftUI
 
-/// Single-instance Settings window with standard toolbar tabs (General, Appearance, Items, About).
+/// Single-instance Settings window with standard toolbar tabs (General, Appearance, Items, Panel, About).
 /// The window title follows the selected tab, as in System Settings-era macOS apps.
 @MainActor
 final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     enum Tab: Int {
-        case general, appearance, items, about
+        case general, appearance, items, panel, about
     }
 
     private let tabs = NSTabViewController()
@@ -30,6 +30,10 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         tabs.addTabViewItem(Self.tab(
             String(localized: "Items"), symbol: "menubar.rectangle",
             ItemsSettingsView(items: items, model: model)
+        ))
+        tabs.addTabViewItem(Self.tab(
+            String(localized: "Panel"), symbol: "chevron.down.square",
+            PanelSettingsView(model: model, items: items)
         ))
         tabs.addTabViewItem(Self.tab(
             String(localized: "About"), symbol: "info.circle",
