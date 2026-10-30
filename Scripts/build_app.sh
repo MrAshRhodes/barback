@@ -21,8 +21,8 @@
 #                         builds merged with lipo behave the same on every toolchain there
 #                         (see Scripts/swiftw.sh).
 #
-# The bundle is signed ad-hoc by default (there is no Developer ID certificate). Barback's core needs
-# no privacy permissions (Accessibility is optional, for item names only), so re-signing is harmless.
+# Ad-hoc signing is for local development only. Releases use Developer ID and notarization;
+# switching from an ad-hoc build requires users to grant Accessibility again.
 
 set -euo pipefail
 
@@ -212,7 +212,7 @@ done
 log "Copied $bundles SwiftPM resource bundle(s)"
 
 SIGN_IDENTITY="${BARBACK_SIGN_IDENTITY:--}"
-sign_flags=(--force --deep --sign "$SIGN_IDENTITY" --entitlements "$ENTITLEMENTS")
+sign_flags=(--force --sign "$SIGN_IDENTITY" --entitlements "$ENTITLEMENTS")
 if [[ "$SIGN_IDENTITY" == "-" ]]; then
   sign_flags+=(--timestamp=none)
   log "Signing ad-hoc"
@@ -221,6 +221,8 @@ else
   log "Signing with '$SIGN_IDENTITY' (hardened runtime)"
 fi
 xattr -cr "$APP"
+# This SwiftPM app contains only its main executable and resource-only bundles.
+# Do not use --deep to sign: any future nested executable must be signed inside-out first.
 codesign "${sign_flags[@]}" "$APP"
 codesign --verify --deep --strict --verbose=2 "$APP"
 

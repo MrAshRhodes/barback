@@ -6,7 +6,7 @@ Thanks for helping to make Barback better. This guide covers building, testing, 
 
 - macOS 14 (Sonoma) or later, Apple silicon or Intel.
 - A Swift 5.9+ toolchain: either full Xcode or only the Command Line Tools (`xcode-select --install`). See [Command Line Tools only](#command-line-tools-only).
-- Nothing else. There is no Xcode project and there are no third-party dependencies; Barback is a SwiftPM package plus a few shell scripts.
+- There is no Xcode project and the app has no third-party dependencies. Signing-script tests use Node.js 20+; notarization additionally uses `jq` and Apple's `notarytool` and `stapler`.
 
 ## Build, run, test
 
@@ -14,6 +14,7 @@ Thanks for helping to make Barback better. This guide covers building, testing, 
 | --- | --- |
 | `make build` / `make release` | Debug / optimized build of every target. |
 | `make test` | Runs the core and native panel interface suites (`Tests/BarbackCoreTests`, `Tests/BarbackTests`). |
+| `make signing-test` | Runs signing/notarization failure-gate tests without credentials or network access. |
 | `make app` | Assembles `dist/Barback.app` for this Mac and signs it ad-hoc (`CONFIG=debug` for a debug build). |
 | `make universal` | Same, with arm64 and x86_64 slices merged by `lipo`. |
 | `make run` | `make app`, then opens the app. It is a menu bar app (no Dock icon): look for the chevron in the menu bar. |
@@ -59,13 +60,31 @@ packaging/homebrew/        barback.rb.tmpl (the Homebrew cask template)
 ## Guidelines
 
 - **Stay fast.** No polling loops or repeating timers; the only timer is the one-shot auto-rehide. Prefer notifications and event monitors, and keep hover handling cheap.
-- **Stay permission-free.** Changes must not require Screen Recording, Accessibility or Input Monitoring.
+- **Keep core hiding permission-free.** Hiding, showing and hotkeys must not require Screen Recording, Accessibility or Input Monitoring. Optional item identification and panel opening use explicit Accessibility permission.
 - **Follow the HIG.** SF Symbols as template images for status items, system colors and fonts, grouped `Form`s in Settings, VoiceOver labels for every control, and respect Reduce Motion / Increase Contrast. Gate Liquid Glass APIs with `if #available(macOS 26, *)` and keep a macOS 14 fallback.
 - Put logic that can be tested in `BarbackCore` and cover it with tests.
 - Log through `os.Logger` with subsystem `io.github.mrashrhodes.barback`.
 - Add user-visible changes to `## [Unreleased]` in [CHANGELOG.md](CHANGELOG.md).
 
 ## Releasing
+
+See [Release signing](packaging/signing/README.md) for credential references, verification evidence and the current hosted-CI import blocker. Do not tag a release until that blocker is resolved.
+
+Local `make app`, `make zip` and `make dmg` remain ad-hoc development builds by default; do not distribute them as production releases. Production packaging requires the existing Developer ID Application identity and a notarytool Keychain profile:
+
+```sh
+BARBACK_SIGN_IDENTITY="<Developer ID Application identity>" \
+BARBACK_NOTARY_PROFILE="<existing Keychain profile>" \
+Scripts/package_release.sh --version X.Y.Z --formats zip,dmg --require-universal --notarize
+```
+
+These variables contain an identity and profile name, not private keys or passwords. Keep credentials in Keychain, never in source control, logs or command arguments. Alternatively, notarization accepts `BARBACK_NOTARY_KEY_PATH`, `BARBACK_NOTARY_KEY_ID` and `BARBACK_NOTARY_ISSUER_ID`; the path points to a protected `.p8` file, not its contents.
+
+The app must satisfy `packaging/signing/designated-requirement.txt`: bundle identifier `io.github.mrashrhodes.barback`, Apple Developer ID trust chain and team `TB3Z5R7SY8`. Keep that identity stable across releases. The current bundle has one executable; any future nested executable must be signed inside-out before the app. Signing must retain hardened runtime and secure timestamps in every architecture.
+
+Packaging submits the app, requires Apple's `Accepted` result, staples it, then creates the final ZIP. It checks the signature, ticket and Gatekeeper assessment after plain ZIP extraction. A requested DMG is separately signed, notarized and stapled. Checksums are written only after verification; do not re-sign, modify or rebuild an artifact after generating its checksum. `Scripts/verify_signature.sh dist/Barback.app --require-notarized` performs the production checks independently.
+
+The first upgrade from an ad-hoc build requires a new Accessibility grant. A stable production designated requirement supports continuity on later updates, but does not guarantee that macOS never asks again. Do not reset the user's privacy database or silently remove quarantine.
 
 1. `make prepare-release VERSION=X.Y.Z`, review the diff, commit and push to `main`.
 2. Tag and push: `git tag vX.Y.Z && git push origin vX.Y.Z`.

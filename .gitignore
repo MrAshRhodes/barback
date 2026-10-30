@@ -20,6 +20,12 @@ dist/
 # Scratch space
 .scratch/
 
+# Signing material must never enter source control.
+*.p12
+*.p8
+*.keychain
+*.keychain-db
+
 # Editors
 .idea/
 .vscode/

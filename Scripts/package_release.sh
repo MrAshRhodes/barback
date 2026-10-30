@@ -4,7 +4,7 @@
 #
 # Usage:
 #   Scripts/package_release.sh [--version X.Y.Z] [--formats zip[,dmg]] [--build-number N]
-#                              [--require-universal] [--skip-build]
+#                              [--require-universal] [--skip-build] [--notarize]
 #
 #   --version X.Y.Z       Release version. Default: the contents of VERSION.
 #   --formats LIST        Comma-separated: zip, dmg. Default: zip (what releases and the cask use).
@@ -12,6 +12,7 @@
 #   --require-universal   Fail when the x86_64 slice cannot be built instead of shipping an
 #                         arm64-only app.
 #   --skip-build          Package the existing dist/Barback.app (its version must match).
+#   --notarize            Require Developer ID, notarize and staple before creating final archives.
 #
 # Outputs, all in dist/:
 #   Barback-<v>.zip + Barback-<v>.zip.sha256   (ditto archive; what the Homebrew cask installs)
@@ -38,7 +39,7 @@ die() {
 usage() {
   cat <<'EOF'
 Usage: Scripts/package_release.sh [--version X.Y.Z] [--formats zip[,dmg]] [--build-number N]
-                                  [--require-universal] [--skip-build]
+                                  [--require-universal] [--skip-build] [--notarize]
 
 Builds a universal dist/Barback.app and packages it:
   dist/Barback-<v>.zip + .sha256, dist/barback.rb (Homebrew cask), optionally dist/Barback-<v>.dmg + .sha256
@@ -48,6 +49,7 @@ Builds a universal dist/Barback.app and packages it:
   --build-number N      CFBundleVersion (default: $GITHUB_RUN_NUMBER, git commit count, or 1)
   --require-universal   fail instead of shipping an arm64-only app
   --skip-build          package the existing dist/Barback.app
+  --notarize            require Developer ID, notarize and staple app/DMG before checksums
 EOF
 }
 
@@ -56,6 +58,7 @@ FORMATS="zip"
 BUILD_NUMBER=""
 REQUIRE_UNIVERSAL=0
 SKIP_BUILD=0
+NOTARIZE=0
 
 while (($#)); do
   case "$1" in
@@ -76,6 +79,7 @@ while (($#)); do
     --build-number=*) BUILD_NUMBER="${1#*=}" ;;
     --require-universal) REQUIRE_UNIVERSAL=1 ;;
     --skip-build) SKIP_BUILD=1 ;;
+    --notarize) NOTARIZE=1 ;;
     -h | --help)
       usage
       exit 0
@@ -104,6 +108,12 @@ for format in "${format_list[@]}"; do
   esac
 done
 ((WANT_ZIP || WANT_DMG)) || die "no formats requested"
+
+if ((NOTARIZE)); then
+  [[ -n "${BARBACK_SIGN_IDENTITY:-}" && "$BARBACK_SIGN_IDENTITY" != "-" ]] \
+    || die "--notarize requires BARBACK_SIGN_IDENTITY (Developer ID Application)"
+  "$ROOT/Scripts/notarize.sh" --check-credentials
+fi
 
 ZIP="$DIST/Barback-$VERSION.zip"
 DMG="$DIST/Barback-$VERSION.dmg"
@@ -134,6 +144,10 @@ if ((REQUIRE_UNIVERSAL)) && [[ " $archs " != *" x86_64 "* || " $archs " != *" ar
 fi
 log "Packaging Barback $VERSION (archs: $archs)"
 
+if ((NOTARIZE)); then
+  "$ROOT/Scripts/notarize.sh" "$APP"
+fi
+
 write_checksum() {
   local file="$1"
   (cd "$(dirname "$file")" && shasum -a 256 "$(basename "$file")" >"$(basename "$file").sha256")
@@ -145,7 +159,6 @@ if ((WANT_ZIP)); then
   # --norsrc/--noextattr keep macOS provenance attributes out of the archive; they would
   # otherwise become ._* entries that plain `unzip` extracts into the signed bundle.
   ditto -c -k --norsrc --noextattr --keepParent "$APP" "$ZIP"
-  write_checksum "$ZIP"
   if unzip -Z1 "$ZIP" | grep -Eq '(^|/)\._|^__MACOSX/'; then
     die "${ZIP#"$ROOT"/} contains AppleDouble (._*) entries"
   fi
@@ -156,7 +169,15 @@ if ((WANT_ZIP)); then
   unzip -q "$ZIP" -d "$VERIFY_DIR"
   codesign --verify --deep --strict "$VERIFY_DIR/Barback.app" \
     || die "the app extracted from ${ZIP#"$ROOT"/} fails signature verification"
+  if ((NOTARIZE)); then
+    xattr -w com.apple.quarantine "0081;$(printf '%x' "$(date +%s)");BarbackReleaseVerification;" \
+      "$VERIFY_DIR/Barback.app"
+    "$ROOT/Scripts/verify_signature.sh" "$VERIFY_DIR/Barback.app" --require-notarized
+    xattr -p com.apple.quarantine "$VERIFY_DIR/Barback.app" >/dev/null \
+      || die "verification unexpectedly removed quarantine"
+  fi
   rm -rf "$VERIFY_DIR"
+  write_checksum "$ZIP"
 fi
 
 if ((WANT_DMG)); then
@@ -165,6 +186,9 @@ if ((WANT_DMG)); then
   rm -f "$DMG" "$DMG.sha256"
   mkdir -p "$STAGE"
   ditto --norsrc --noextattr "$APP" "$STAGE/Barback.app"
+  if ((NOTARIZE)); then
+    "$ROOT/Scripts/verify_signature.sh" "$STAGE/Barback.app" --require-notarized
+  fi
   ln -s /Applications "$STAGE/Applications"
   hdiutil create -quiet -volname "Barback $VERSION" -srcfolder "$STAGE" \
     -fs HFS+ -format UDZO -ov "$DMG"
@@ -173,6 +197,9 @@ if ((WANT_DMG)); then
     codesign --force --sign "$BARBACK_SIGN_IDENTITY" --timestamp "$DMG"
   fi
   hdiutil verify -quiet "$DMG" || die "${DMG#"$ROOT"/} failed hdiutil verify"
+  if ((NOTARIZE)); then
+    "$ROOT/Scripts/notarize.sh" "$DMG"
+  fi
   write_checksum "$DMG"
 fi
 

@@ -20,7 +20,7 @@ APP := dist/Barback.app
 ZIP := dist/Barback-$(VERSION).zip
 VERSION_ARG := $(if $(VERSION),--version $(VERSION),)
 
-.PHONY: help build release test app universal run zip dmg install icon tap tap-dry-run publish-tap changelog-check prepare-release lint clean
+.PHONY: help build release test signing-test app universal run zip dmg install icon tap tap-dry-run publish-tap changelog-check prepare-release lint clean
 
 help: ## Show this help
 	@echo "Usage: make <target> [VERSION=x.y.z] [CONFIG=release|debug] [INSTALL_DIR=/Applications]"
@@ -35,6 +35,9 @@ release: ## Optimized build of every target
 
 test: ## Run the test suite
 	$(SWIFTW) test
+
+signing-test: ## Test signing and notarization failure gates without credentials
+	node --test Tests/SigningTests/*.test.cjs
 
 app: ## Assemble dist/Barback.app for this Mac and sign it ad-hoc
 	Scripts/build_app.sh $(VERSION_ARG) --configuration $(CONFIG)

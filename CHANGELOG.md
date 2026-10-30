@@ -7,6 +7,13 @@ See [GitHub Releases](https://github.com/MrAshRhodes/barback/releases) for downl
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-10-30
+
+### Fixed
+
+- Add a Developer ID signing and notarization path with hardened runtime, secure timestamps, stapled tickets, and verification of extracted release archives. Reject wrong-team signatures and failed notarization instead of distributing an ad-hoc fallback.
+- Preserve quarantine in the Homebrew cask and document the one-time Accessibility regrant when upgrading from ad-hoc releases through 0.2.1. Future production builds retain the bundle identifier and signing team.
+
 ## [0.2.1] - 2026-10-30
 
 ### Fixed
@@ -51,7 +58,8 @@ First public release.
 - Universal (Apple silicon + Intel) app for macOS 14 Sonoma or later, distributed as a zip and a Homebrew cask (`brew install --cask mrashrhodes/tap/barback`).
 
 
-[Unreleased]: https://github.com/MrAshRhodes/barback/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/MrAshRhodes/barback/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/MrAshRhodes/barback/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/MrAshRhodes/barback/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/MrAshRhodes/barback/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/MrAshRhodes/barback/releases/tag/v0.1.0
