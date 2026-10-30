@@ -75,4 +75,12 @@ Local candidate `0.2.2-notary.1` was built on 30 October 2026 for arm64 and x86_
 
 These are local artifacts, not a published release. Actual disconnected/offline first launch and macOS privacy-grant continuity are separate manual checks; a valid stapled ticket alone does not demonstrate those UI behaviors.
 
+The final-version `0.2.2` artifacts (build 9) were also signed, notarized and verified on 30 October 2026:
+
+- App notarization accepted: `ce8043df-acc4-4c52-8d55-e8a46c4af147`.
+- DMG notarization accepted: `f02357f3-e006-4a18-b753-dd90283eb6b5`.
+- App, quarantined ZIP extraction and DMG pass signature, stapled-ticket and Gatekeeper verification.
+- ZIP SHA-256: `b38901997edf2dd6d3588332731cf96ffdd5645036f6acc01cf419720776e61c`.
+- The generated Homebrew cask pins that exact ZIP and does not remove quarantine.
+
 Before a future hosted release, complete the approved credential import, use a temporary keychain and protected runner key file, restore any modified keychain search list, and delete imported credentials with `if: always()` even after failure. Obtain separate approval before pushing a version tag, publishing a release or updating the Homebrew tap. Never replace published release assets.
