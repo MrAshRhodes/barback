@@ -10,50 +10,53 @@ final class ItemOpener {
     static let firstDelay: TimeInterval = 0.3
     static let retryDelay: TimeInterval = 0.4
 
-    private var generation = 0
-
-    /// Starts opening `key`. A newer call, or `cancel()`, abandons one that is still waiting.
-    func open(key: ItemKey, display: Int?) {
-        generation += 1
-        attempt(key: key, display: display, retry: false, generation: generation)
+    /// AX elements are confined to the worker's serial queue, including the scan that creates them.
+    private struct Target: @unchecked Sendable {
+        let frame: CGRect
+        let scan: MenuBarScan
     }
 
-    func cancel() { generation += 1 }
-
-    private func attempt(key: ItemKey, display: Int?, retry: Bool, generation: Int) {
-        let delay = retry ? Self.retryDelay : Self.firstDelay
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-            guard let self, self.generation == generation else { return }
-            self.scanAndPress(key: key, display: display, retry: retry, generation: generation)
+    private let worker = ItemOpenWorker<Target>(
+        firstDelay: firstDelay,
+        retryDelay: retryDelay,
+        isTrusted: { AXIsProcessTrusted() },
+        press: { target in
+            guard AXIsProcessTrusted() else { return .failure(.permissionRequired) }
+            guard let result = AccessibilityScanner.pressResult(itemAt: target.frame, in: target.scan) else {
+                return .failure(.unavailable)
+            }
+            switch result {
+            case .success: return .success(())
+            case .apiDisabled: return .failure(.permissionRequired)
+            case .cannotComplete: return .failure(.uncertain)
+            default: return .failure(.couldNotOpen)
+            }
         }
-    }
+    )
 
-    private func scanAndPress(key: ItemKey, display: Int?, retry: Bool, generation: Int) {
+    /// A newer call or cancellation abandons scans that have not committed their press yet.
+    func open(key: ItemKey, display: Int?, completion: @escaping (Result<Void, ItemOpenError>) -> Void = { _ in }) {
         let displays = ItemsModel.currentDisplays()
         let tops = displays.map(\.frame.minY)
         let apps = RunningAppInfo.current()
-        Task.detached(priority: .userInitiated) {
+        worker.open(scan: {
             let scan = AccessibilityScanner.scan(tops: tops, trusted: true, apps: apps)
-            let pressed = Self.press(key: key, display: display, displays: displays, in: scan)
-            await self.finished(pressed: pressed, key: key, display: display, retry: retry, generation: generation)
+            let keys = ItemKeyAssigner.panelKeys(for: scan.items, displays: displays)
+            guard let item = scan.items.first(where: {
+                keys[$0.windowID] == key
+                    && (display == nil || ItemClassifier.displayIndex(for: $0.frame, in: displays) == display)
+                    && $0.isVisible(onScreens: displays.map(\.frame))
+            }),
+                  FrameMatcher.bestMatchIndex(for: item.frame, among: scan.elements.map(\.frame)) != nil else { return nil }
+            return Target(frame: item.frame, scan: scan)
+        }) { result in
+            switch result {
+            case .success: Log.items.info("Opened a menu bar item from the panel")
+            case .failure(let error): Log.items.notice("Could not confirm item opening: \(error.localizedDescription, privacy: .public)")
+            }
+            completion(result)
         }
     }
 
-    /// Presses the item carrying `key` if the scan shows it on screen.
-    nonisolated private static func press(key: ItemKey, display: Int?, displays: [MenuBarDisplay], in scan: MenuBarScan) -> Bool {
-        guard let item = ItemKeyAssigner.item(for: key, in: scan.items, displays: displays, display: display),
-              item.isVisible(onScreens: displays.map(\.frame)) else { return false }
-        return AccessibilityScanner.press(itemAt: item.frame, in: scan)
-    }
-
-    private func finished(pressed: Bool, key: ItemKey, display: Int?, retry: Bool, generation: Int) {
-        guard self.generation == generation else { return }
-        if pressed {
-            Log.items.info("Opened a menu bar item from the panel")
-        } else if !retry {
-            attempt(key: key, display: display, retry: true, generation: generation)
-        } else {
-            Log.items.notice("Could not open the item; it stays revealed")
-        }
-    }
+    func cancel() { worker.cancel() }
 }

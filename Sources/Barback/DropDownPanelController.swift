@@ -11,12 +11,8 @@ import SwiftUI
 /// those exist only for as long as it is open.
 @MainActor
 final class DropDownPanelController: NSObject {
-    /// Persisted once the user dismisses the "allow Accessibility" footer.
-    static let accessibilityHintDismissedKey = "hasDismissedPanelAccessibilityHint"
-
     /// What the header and padding take; the rest of the screen's height goes to the scrolling boxes.
-    private static let chromeHeight: CGFloat = 66
-    private static let hintHeight: CGFloat = 110
+    private static let chromeHeight: CGFloat = 78
     private static let minContentHeight: CGFloat = 120
 
     private let appModel: AppModel
@@ -29,6 +25,11 @@ final class DropDownPanelController: NSObject {
     private var observers: [(center: NotificationCenter, token: NSObjectProtocol)] = []
     private var lastFrame: NSRect?
     private var fitPending = false
+    private var isOpeningItem = false {
+        didSet {
+            if oldValue != isOpeningItem { onOpeningChange(isOpeningItem) }
+        }
+    }
 
     /// The button the panel hangs from.
     var anchor: () -> NSStatusBarButton? = { nil }
@@ -36,6 +37,7 @@ final class DropDownPanelController: NSObject {
     var reveal: (SectionAction) -> Void = { _ in }
     var onOpenSettings: () -> Void = {}
     var onVisibilityChange: (Bool) -> Void = { _ in }
+    var onOpeningChange: (Bool) -> Void = { _ in }
 
     var isShown: Bool { window != nil }
 
@@ -44,18 +46,27 @@ final class DropDownPanelController: NSObject {
         self.items = items
         super.init()
         panelModel.onOpen = { [weak self] in self?.open($0) }
-        panelModel.onMove = { [weak self] in self?.move($0, to: $1) }
-        panelModel.onNewGroup = { [weak self] in self?.promptForNewGroup(for: $0) }
-        panelModel.onSetLayout = { [weak self] in self?.appModel.settings.dropDownLayout = $0 }
         panelModel.onOpenSettings = { [weak self] in
             self?.close()
             self?.onOpenSettings()
         }
+        panelModel.onEditPanel = { [weak self] id in
+            self?.appModel.selectedPanelID = id
+            self?.close()
+            self?.onOpenSettings()
+        }
         panelModel.onAllowAccessibility = { [weak self] in self?.items.requestAccessibility() }
-        panelModel.onDismissAccessibilityHint = { [weak self] in
-            UserDefaults.standard.set(true, forKey: Self.accessibilityHintDismissedKey)
-            self?.rebuild()
-            self?.scheduleFit()
+        panelModel.onRefresh = { [weak self] in
+            self?.panelModel.errorMessage = nil
+            self?.items.refresh()
+        }
+        panelModel.onReveal = { [weak self] in
+            guard let self else { return }
+            let needsAlwaysHidden = self.panelModel.boxes.flatMap(\.items).contains { $0.revealAction == .showAll }
+                || (self.appModel.settings.alwaysHiddenEnabled
+                    && self.panelModel.boxes.contains { $0.unavailableCount > 0 })
+            self.close()
+            self.reveal(needsAlwaysHidden ? .showAll : .show)
         }
     }
 
@@ -67,6 +78,8 @@ final class DropDownPanelController: NSObject {
     }
 
     func show() {
+        opener.cancel()
+        isOpeningItem = false
         guard window == nil, let button = anchor(), let buttonWindow = button.window, buttonWindow.screen != nil else { return }
         // Refresh only now; the panel never scans in the background.
         items.refresh()
@@ -94,6 +107,8 @@ final class DropDownPanelController: NSObject {
     }
 
     func close(animated: Bool = true) {
+        opener.cancel()
+        isOpeningItem = false
         guard let panel = window else { return }
         window = nil
         lastFrame = nil
@@ -132,8 +147,7 @@ final class DropDownPanelController: NSObject {
     private func updateContentLimit() {
         guard let region = anchorRegion() else { return }
         let room = DropDownPlacement.maxHeight(anchor: region.anchor, visible: region.visible)
-        let chrome = Self.chromeHeight + (panelModel.showsAccessibilityHint ? Self.hintHeight : 0)
-        let limit = min(DropDownPanelView.defaultMaxContentHeight, max(Self.minContentHeight, room - chrome))
+        let limit = min(DropDownPanelView.defaultMaxContentHeight, max(Self.minContentHeight, room - Self.chromeHeight))
         if abs(panelModel.maxContentHeight - limit) > 0.5 { panelModel.maxContentHeight = limit }
     }
 
@@ -192,6 +206,11 @@ final class DropDownPanelController: NSObject {
         ) { [weak self] _ in
             MainActor.assumeIsolated { self?.close() }
         }))
+        observers.append((center, center.addObserver(
+            forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.items.refreshAccessibilityStatus() }
+        }))
     }
 
     private func removeDismissal() {
@@ -223,87 +242,55 @@ final class DropDownPanelController: NSObject {
     private func startObserving() {
         cancellables.removeAll()
         Publishers.CombineLatest4(items.$rows, items.$isRefreshing, items.$accessibilityTrusted, appModel.$settings)
-            .sink { [weak self] rows, refreshing, trusted, settings in
-                self?.apply(rows: rows, isRefreshing: refreshing, trusted: trusted, settings: settings)
+            // Published emits before its storage changes; read derived candidates on the next main turn.
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                guard let self, self.isShown else { return }
+                self.rebuild()
+                self.scheduleFit()
             }
             .store(in: &cancellables)
     }
 
     private func rebuild() {
-        apply(rows: items.rows, isRefreshing: items.isRefreshing, trusted: items.accessibilityTrusted, settings: appModel.settings)
-    }
-
-    private func apply(rows: [MenuBarItemRow], isRefreshing: Bool, trusted: Bool, settings: BarbackSettings) {
-        var hidden: [DropDownPanelItem] = []
-        var alwaysHidden: [DropDownPanelItem] = []
-        for row in rows {
-            guard let box = DropDownContent.box(
-                section: row.section,
-                visibility: row.visibility,
-                isBarbackItem: row.barbackRole != nil,
-                alwaysHiddenEnabled: settings.alwaysHiddenEnabled
-            ) else { continue }
-            let item = DropDownPanelItem(
-                id: row.id,
-                key: row.key,
-                title: row.panelTitle,
-                icon: ItemIcons.image(for: row.item),
-                fallbackSymbol: ItemIcons.symbol(for: row.item),
-                display: row.display,
-                box: box
-            )
-            if box == .alwaysHidden { alwaysHidden.append(item) } else { hidden.append(item) }
-        }
-        panelModel.boxes = DropDownPanelBox.make(hidden: hidden, alwaysHidden: alwaysHidden, groups: settings.groups)
-        panelModel.layout = settings.dropDownLayout
-        panelModel.groups = settings.groups
-        panelModel.canAddGroup = settings.groups.count < ItemGroups.maxGroups
-        panelModel.isLoading = isRefreshing
-        panelModel.showsAccessibilityHint = !trusted && !UserDefaults.standard.bool(forKey: Self.accessibilityHintDismissedKey)
+        let settings = appModel.settings
+        let candidates = items.panelCandidates
+            .filter { $0.section != .alwaysHidden || settings.alwaysHiddenEnabled }
+            .map(DropDownPanelItem.init)
+        panelModel.boxes = DropDownPanelBox.make(
+            items: candidates, groups: settings.groups, defaultLayout: settings.dropDownLayout
+        )
+        panelModel.isLoading = items.isRefreshing
+        panelModel.canOpenItems = items.accessibilityTrusted
+        panelModel.unidentifiedItemCount = items.unidentifiedPanelItemCount
     }
 
     // MARK: - Actions
 
-    /// Reveals the item's section and, with Accessibility, presses the item so its own menu opens. Without it the
-    /// items are simply revealed in the menu bar.
     private func open(_ item: DropDownPanelItem) {
+        guard AXIsProcessTrusted() else {
+            items.refreshAccessibilityStatus()
+            panelModel.canOpenItems = false
+            panelModel.errorMessage = String(localized: "Allow Accessibility before opening an item, or choose Show in Menu Bar.")
+            scheduleFit()
+            return
+        }
+        panelModel.errorMessage = nil
         close()
-        let trusted = AXIsProcessTrusted()
-        reveal(DropDownContent.revealAction(for: item.box))
-        guard trusted else { return }
-        opener.open(key: item.key, display: item.display)
-    }
-
-    private func move(_ item: DropDownPanelItem, to groupID: UUID?) {
-        var groups = appModel.settings.groups
-        guard ItemGroups.assign(item.key, to: groupID, in: &groups) else { return }
-        appModel.settings.groups = groups
-    }
-
-    private func promptForNewGroup(for item: DropDownPanelItem) {
-        close(animated: false)
-        // Let the context menu finish closing before a modal alert takes over.
-        DispatchQueue.main.async { [weak self] in
+        if let action = item.revealAction { reveal(action) }
+        let foreground = NSWorkspace.shared.frontmostApplication?.processIdentifier
+        // Revealing synchronously closes the panel again; start the pending state only after that returns.
+        isOpeningItem = true
+        opener.open(key: item.key, display: item.display) { [weak self] result in
             guard let self else { return }
-            let alert = NSAlert()
-            alert.messageText = String(localized: "New Group")
-            alert.informativeText = String(localized: "Name the group for “\(item.title)”. You can change its name and symbol in Settings › Panel.")
-            let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 240, height: 24))
-            field.placeholderString = String(localized: "Group name")
-            field.setAccessibilityLabel(String(localized: "Group name"))
-            alert.accessoryView = field
-            alert.addButton(withTitle: String(localized: "Create"))
-            alert.addButton(withTitle: String(localized: "Cancel"))
-            alert.window.initialFirstResponder = field
-            NSApp.activate()
-            if alert.runModal() == .alertFirstButtonReturn {
-                var groups = self.appModel.settings.groups
-                if let id = ItemGroups.add(name: field.stringValue, to: &groups) {
-                    ItemGroups.assign(item.key, to: id, in: &groups)
-                    self.appModel.settings.groups = groups
+            self.isOpeningItem = false
+            if case .failure(let error) = result {
+                self.panelModel.errorMessage = String(localized: "\(item.title): \(error.localizedDescription)")
+                // Don't steal focus if the user switched apps while the item was being found.
+                if error != .uncertain, NSWorkspace.shared.frontmostApplication?.processIdentifier == foreground {
+                    self.show()
                 }
             }
-            self.show()
         }
     }
 }

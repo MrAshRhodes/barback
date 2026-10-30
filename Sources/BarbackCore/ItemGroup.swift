@@ -8,12 +8,21 @@ public struct ItemGroup: Identifiable, Hashable, Codable, Sendable {
     public var symbol: String
     /// The items in this group; an item belongs to at most one group.
     public var itemKeys: [ItemKey]
+    /// An override for this panel; nil inherits the global layout.
+    public var layout: DropDownLayout?
 
-    public init(id: UUID = UUID(), name: String, symbol: String = ItemGroups.defaultSymbol, itemKeys: [ItemKey] = []) {
+    public init(
+        id: UUID = UUID(),
+        name: String,
+        symbol: String = ItemGroups.defaultSymbol,
+        itemKeys: [ItemKey] = [],
+        layout: DropDownLayout? = nil
+    ) {
         self.id = id
         self.name = name
         self.symbol = symbol
         self.itemKeys = itemKeys
+        self.layout = layout
     }
 
     public init(from decoder: Decoder) throws {
@@ -22,6 +31,8 @@ public struct ItemGroup: Identifiable, Hashable, Codable, Sendable {
         name = try c.decode(String.self, forKey: .name)
         symbol = try c.decodeIfPresent(String.self, forKey: .symbol) ?? ItemGroups.defaultSymbol
         itemKeys = try c.decodeIfPresent([ItemKey].self, forKey: .itemKeys) ?? []
+        // A layout from a newer version must not make the entire saved group list unreadable.
+        layout = try? c.decodeIfPresent(DropDownLayout.self, forKey: .layout)
     }
 }
 
@@ -122,6 +133,25 @@ public enum ItemGroups {
     public static func setSymbol(_ symbol: String, for id: UUID, in groups: inout [ItemGroup]) -> Bool {
         guard let index = groups.firstIndex(where: { $0.id == id }) else { return false }
         groups[index].symbol = sanitizedSymbol(symbol)
+        return true
+    }
+
+    @discardableResult
+    public static func setLayout(_ layout: DropDownLayout, for id: UUID, in groups: inout [ItemGroup]) -> Bool {
+        guard let index = groups.firstIndex(where: { $0.id == id }) else { return false }
+        groups[index].layout = layout
+        return true
+    }
+
+    /// Moves an assigned item within its panel, clamping to either end without changing memberships.
+    @discardableResult
+    public static func moveItem(_ key: ItemKey, in id: UUID, by offset: Int, groups: inout [ItemGroup]) -> Bool {
+        guard let groupIndex = groups.firstIndex(where: { $0.id == id }),
+              let index = groups[groupIndex].itemKeys.firstIndex(of: key) else { return false }
+        let distance = min(max(-index, offset), groups[groupIndex].itemKeys.count - 1 - index)
+        guard distance != 0 else { return false }
+        let item = groups[groupIndex].itemKeys.remove(at: index)
+        groups[groupIndex].itemKeys.insert(item, at: index + distance)
         return true
     }
 

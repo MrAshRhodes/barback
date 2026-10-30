@@ -67,14 +67,13 @@ enum AccessibilityScanner {
         return result
     }
 
-    /// Presses the element whose frame matches `frame`. An app that opens its menu inside the press may not
-    /// answer until the menu closes, so a timeout counts as pressed too.
-    nonisolated static func press(itemAt frame: CGRect, in scan: MenuBarScan) -> Bool {
-        guard let index = FrameMatcher.bestMatchIndex(for: frame, among: scan.elements.map(\.frame)) else { return false }
+    /// Nil means no action was dispatched. A timeout is an uncertain result, not confirmed success;
+    /// callers must not retry a dispatched press because that can close a menu which did open.
+    nonisolated static func pressResult(itemAt frame: CGRect, in scan: MenuBarScan) -> AXError? {
+        guard let index = FrameMatcher.bestMatchIndex(for: frame, among: scan.elements.map(\.frame)) else { return nil }
         let target = scan.elements[index].element
         AXUIElementSetMessagingTimeout(target, 2)
-        let result = AXUIElementPerformAction(target, kAXPressAction as CFString)
-        return result == .success || result == .cannotComplete
+        return AXUIElementPerformAction(target, kAXPressAction as CFString)
     }
 
     // MARK: - Attribute helpers

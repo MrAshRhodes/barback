@@ -24,6 +24,7 @@ final class AppModel: ObservableObject {
     }
 
     @Published var hotkeyError: String?
+    @Published var selectedPanelID: UUID?
     /// Shown in the menu and Settings when the separators are in an order that can't be used.
     @Published var layoutWarning: String?
 

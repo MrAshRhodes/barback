@@ -13,7 +13,7 @@ Thanks for helping to make Barback better. This guide covers building, testing, 
 | Target | What it does |
 | --- | --- |
 | `make build` / `make release` | Debug / optimized build of every target. |
-| `make test` | Runs the test suite (`Tests/BarbackCoreTests`). |
+| `make test` | Runs the core and native panel interface suites (`Tests/BarbackCoreTests`, `Tests/BarbackTests`). |
 | `make app` | Assembles `dist/Barback.app` for this Mac and signs it ad-hoc (`CONFIG=debug` for a debug build). |
 | `make universal` | Same, with arm64 and x86_64 slices merged by `lipo`. |
 | `make run` | `make app`, then opens the app. It is a menu bar app (no Dock icon): look for the chevron in the menu bar. |
@@ -41,13 +41,14 @@ Every SwiftPM call goes through `Scripts/swiftw.sh`. With Xcode installed it is 
 ## Project layout
 
 ```
-Package.swift              BarbackCore (library), Barback (executable), BarbackCoreTests
+Package.swift              BarbackCore (library), Barback (executable), both test targets
 Sources/BarbackCore        Pure, testable logic: settings, section layout, rehide policy,
                            menu bar item parsing, hotkeys, notch geometry, item groups,
                            drop-down panel placement
 Sources/Barback            App shell: AppDelegate, status items, hotkey, hover monitor, Settings UI,
                            drop-down panel (DropDownPanelWindow/-Controller/-View)
 Tests/BarbackCoreTests     Unit tests for BarbackCore
+Tests/BarbackTests         Native panel controls and settings persistence, using isolated defaults
 Resources/                 Info.plist template, Barback.entitlements, AppIcon.icns
 Scripts/                   build_app.sh, package_release.sh, render_cask.sh, update_tap.sh,
                            changelog.sh, swiftw.sh, make_icon.swift

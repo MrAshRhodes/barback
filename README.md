@@ -52,7 +52,7 @@ Barback adds a **chevron** to your menu bar and a thin **separator** to its left
 3. **Always-hidden items.** Enable the second (always-hidden) separator in Settings and ⌘-drag items to its left. **Option-click** the chevron to reveal them too.
 4. **Menu.** Right-click the chevron for Show/Hide, Show Always-Hidden, Settings… (⌘,), About, Getting Started and Quit.
 5. **Make it yours.** In Settings › Appearance, pick a style or choose the icon (chevron, eye, wine glass, mug, Carlos’ Marañon and more), its weight, separator styles (line, dashed, dot, double line, chevron or invisible) and up to three extra dividers for grouping items.
-6. **Optional drop-down panel.** In Settings › Panel, set **Click Barback to** *Open a drop-down panel*. Clicking the chevron (or pressing the hotkey) then opens a panel under the icon instead of widening the menu bar. See below.
+6. **Optional drop-down panels.** In Settings › Panel, click **Add Panel**, give it a name, and choose its items. This sets **Click Barback to** *Open my panels*. Clicking the chevron (or pressing the hotkey) then opens your panels under the icon. See below.
 
 The first time Barback starts, a short tip under the chevron explains the basics; open it again with **Getting Started** in the menu.
 
@@ -63,18 +63,19 @@ Hidden items re-hide automatically after 10 seconds (configurable, or never), bu
 - **General**: launch at login, auto-rehide delay, show on hover, hide when switching apps, always-hidden section, global hotkey.
 - **Appearance**: a live preview plus styles (Classic, Minimal, Cocktail, Eye, Arrows), the toggle icon and its weight, an optional accent tint while hidden items are showing, separator styles for each section, and extra dividers. These change only Barback's own items. An invisible separator still leaves a narrow gap you can ⌘-drag.
 - **Items**: a read-only list of every menu bar item, the process that owns its window, its section and whether it is currently on screen. It is scanned only when you open the tab or click Refresh (⌘R), off the main thread. On a Mac with a notch, items that would sit behind the notch are flagged so you can hide something else to make room. On macOS 26 Tahoe, Control Center hosts most items' windows, so their source app can't be read from window metadata and they're listed as *Unidentified Item*; if you choose to allow Accessibility access, Barback matches them to app names.
-- **Panel**: what clicking Barback does (show the items in the menu bar, the default, or open the drop-down panel), the panel's layout (list or grid), and up to 12 named groups with an icon each.
+- **Panel**: what clicking Barback does (show the items in the menu bar, the default, or open your panels), and a complete editor for up to 12 panels: select their items, rename, choose an icon and list/grid layout, and reorder panels or their items.
 - **About**: version, license and links.
 
 > **Tip:** if the separator ends up to the right of the chevron, Barback won't expand it (that would hide the chevron too) and shows a hint. ⌘-drag the separator back to the left of the chevron.
 
 ### Drop-down panel (optional)
 
-With **Click Barback to** set to *Open a drop-down panel* (Settings › Panel; the default is still to show the items in the menu bar), clicking the chevron opens a small panel directly under it, like the ones in Control Center. The global hotkey follows the click action, so it opens the panel too; Option-click still reveals everything in the menu bar, including always-hidden items.
+With **Click Barback to** set to *Open my panels* (Settings › Panel; the default is still to show the items in the menu bar), a normal left-click on Barback opens your panels directly beneath it, like the ones in Control Center. The same click works even when menu bar items are already revealed. The global hotkey follows the click action; Option-click still reveals everything in the menu bar, including always-hidden items.
 
-- **Lists the hidden items** as a list (icon and name) or a grid (icons only); switch with the button in the panel's header, or in Settings › Panel. The gear button opens the Panel settings.
-- **Groups.** Right-click an item and choose **Move to Group** (or **New Group…**) to sort it into a named group. Each group is a box in the panel, followed by *Other* for everything not yet grouped. Groups are managed in Settings › Panel: rename, change the icon, reorder or delete them. An always-hidden item can't be put in a group.
-- **Click an item** to open its menu from the panel. Barback reveals the item for a moment and presses it through the Accessibility API, which needs the Accessibility permission (the panel shows a hint at the bottom until it is granted). Without it, clicking just reveals the items in the menu bar, as before.
+- **Configure first.** Click **Add Panel** in Settings › Panel, enter a name, select a symbol and layout, then use **Add Items** to choose what it contains. Use the arrows to order panels and their items. Both list and grid layouts show item names. The gear and panel edit buttons take you back to Settings.
+- **Only your selections.** There is no automatic *Other* box. Identifiable items from any section can be selected; always-hidden items are available when that section is enabled. Each item belongs to one panel. Removing a panel or selection does not move or hide its original menu bar icon. Existing saved groups are kept as panels.
+- **Honest identification.** Unidentified or ambiguous items are not offered as interchangeable generic icons. On macOS 26, allow Accessibility to identify items hosted by Control Center, then refresh. Saved selections that are not running or cannot be identified remain saved and are marked unavailable, rather than being reassigned to another icon.
+- **Open an item.** Accessibility permission is required to press an item's menu. Until it is allowed, item buttons are disabled and the panel provides an explicit **Show in Menu Bar** fallback. With permission, Barback reveals the selected item's section only when needed and opens its menu. Failures are reported instead of silently doing nothing; uncertain presses are not automatically repeated.
 - **Look and behavior.** The panel is a borderless window whose right edge lines up with the Barback icon, a few points below it, kept inside the screen. On macOS 26 Tahoe it is made of Liquid Glass; on macOS 14 and 15 it uses a system material instead. It closes when you click elsewhere, press Esc, click the icon again, switch Space or app, or the screen layout changes. Reduce Transparency gives it a solid background, Increase Contrast adds an outline and Reduce Motion drops the slide. The items are reachable with the keyboard and VoiceOver.
 
 ### Automation

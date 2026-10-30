@@ -1,13 +1,14 @@
 import CoreGraphics
 import Foundation
 
-/// A menu bar item's identity that survives relaunches, unlike its window ID.
+/// A menu bar item's stored identity, unlike its transient window ID.
 ///
 /// `owner` is the bundle identifier of the app that owns the item (its process name when there is none), `detail`
 /// is the item's own Accessibility title or description when known (an app can have several items; macOS 26
 /// hosts most of them in Control Center), and `ordinal` tells items with the same owner and detail apart by
 /// their position, left to right. Without Accessibility, system-hosted items share one owner, so their
-/// ordinals follow the menu bar's current order.
+/// ordinals follow the menu bar's current order. These positional keys are not safe panel selectors;
+/// `ItemKeyAssigner.panelKeys` only offers identifiable, unambiguous items.
 public struct ItemKey: Hashable, Codable, Sendable {
     public var owner: String
     public var detail: String?
@@ -62,6 +63,51 @@ public enum ItemKeyAssigner {
             for (ordinal, item) in ordered.enumerated() {
                 result[item.windowID] = ItemKey(owner: bucket.owner, detail: bucket.detail, ordinal: ordinal)
             }
+        }
+        return result
+    }
+
+    /// Keys suitable for saved panel assignments. Unresolved hosts and positional ordinals are not selectors.
+    public static func panelKeys(
+        for items: [MenuBarItem],
+        displays: [MenuBarDisplay] = []
+    ) -> [UInt32: ItemKey] {
+        panelKeys(for: items) { ItemClassifier.displayIndex(for: $0.frame, in: displays) }
+    }
+
+    /// Uses display indices from an already-classified snapshot.
+    public static func panelKeys(
+        for items: [MenuBarItem],
+        displayIndex: (MenuBarItem) -> Int?
+    ) -> [UInt32: ItemKey] {
+        struct OwnerDisplay: Hashable {
+            var owner: String
+            var display: Int?
+        }
+        var members: [ItemKey: [(item: MenuBarItem, display: Int?)]] = [:]
+        var ownerCounts: [OwnerDisplay: Int] = [:]
+        for item in items {
+            guard let bundleID = item.bundleID,
+                  !bundleID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
+            let identity = identity(of: item)
+            guard !MenuBarItemParser.systemHostBundleIDs.contains(bundleID) || identity.detail != nil else { continue }
+            let key = ItemKey(owner: identity.owner, detail: identity.detail)
+            let display = displayIndex(item)
+            members[key, default: []].append((item, display))
+            ownerCounts[OwnerDisplay(owner: key.owner, display: display), default: 0] += 1
+        }
+        var result: [UInt32: ItemKey] = [:]
+        for (key, copies) in members {
+            // One copy per known display is safe; two on one display need an identifier, not an ordinal.
+            let displays = Set(copies.map(\.display))
+            guard displays.count == copies.count,
+                  copies.count == 1 || !displays.contains(nil),
+                  Set(copies.map { $0.item.sourcePID ?? $0.item.ownerPID }).count == 1 else { continue }
+            // Partially identifying one of an app's items must not reassign its old unnamed ordinal to a sibling.
+            guard key.detail != nil || copies.allSatisfy({
+                ownerCounts[OwnerDisplay(owner: key.owner, display: $0.display)] == 1
+            }) else { continue }
+            for copy in copies { result[copy.item.windowID] = key }
         }
         return result
     }

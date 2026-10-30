@@ -7,6 +7,16 @@ See [GitHub Releases](https://github.com/MrAshRhodes/barback/releases) for downl
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-10-30
+
+### Fixed
+
+- Replace empty-group management with a complete panel editor: choose real menu bar items, name and style each panel, set its list/grid layout, and reorder panels and selections. Adding a panel enables normal left-click opening.
+- Always open the configured dropdown on a primary click or hotkey in panel mode, even while hidden icons are already revealed. Option-click and the traditional strip mode keep their existing behavior.
+- Show only explicitly selected, safely identified items, with names in both layouts. Remove the automatic wall of generic icons and the implicit Other group. Preserve existing groups and unavailable selections without guessing new identities.
+- Make Accessibility requirements visible and disable item opening without permission, with an explicit Show in Menu Bar fallback. Report opening failures and prevent obsolete scans or uncertain presses from triggering repeated actions.
+- Refresh item identification after permission changes and deduplicate items mirrored across displays.
+
 ## [0.2.0] - 2026-10-30
 
 ### Added
@@ -41,6 +51,7 @@ First public release.
 - Universal (Apple silicon + Intel) app for macOS 14 Sonoma or later, distributed as a zip and a Homebrew cask (`brew install --cask mrashrhodes/tap/barback`).
 
 
-[Unreleased]: https://github.com/MrAshRhodes/barback/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/MrAshRhodes/barback/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/MrAshRhodes/barback/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/MrAshRhodes/barback/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/MrAshRhodes/barback/releases/tag/v0.1.0

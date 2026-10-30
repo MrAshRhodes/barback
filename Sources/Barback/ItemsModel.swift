@@ -10,7 +10,7 @@ struct MenuBarItemRow: Identifiable, Hashable {
     var overlapsNotch: Bool
     /// Non-nil for Barback's own status items.
     var barbackRole: String?
-    /// Identity that survives relaunches; what groups store.
+    /// Scan identity; panel candidates replace positional keys with safe selectors.
     var key: ItemKey
     /// Index of the display the item is on (into the scan's displays); nil when it can't be told.
     var display: Int?
@@ -43,23 +43,69 @@ final class ItemsModel: ObservableObject {
     @Published private(set) var rows: [MenuBarItemRow] = []
     @Published private(set) var isRefreshing = false
     @Published private(set) var lastRefreshed: Date?
-    @Published private(set) var accessibilityTrusted = AXIsProcessTrusted()
+    @Published private(set) var accessibilityTrusted: Bool
     @Published private(set) var hasNotch = false
 
+    private let scansEnabled: Bool
+    private var refreshPending = false
     weak var statusBar: StatusBarController?
+
+    init() {
+        accessibilityTrusted = AXIsProcessTrusted()
+        scansEnabled = true
+    }
+
+    /// An immutable menu-bar snapshot for previews and native UI tests, without scans or permission prompts.
+    init(snapshot rows: [MenuBarItemRow], accessibilityTrusted: Bool = true) {
+        self.rows = rows
+        self.accessibilityTrusted = accessibilityTrusted
+        scansEnabled = false
+        hasNotch = rows.contains(where: \.overlapsNotch)
+    }
 
     var notchRows: [MenuBarItemRow] { rows.filter(\.overlapsNotch) }
     var systemHosted: Bool { rows.contains { $0.item.isHostedBySystem && $0.barbackRole == nil } }
+    var panelCandidates: [MenuBarItemRow] { Self.panelCandidates(from: rows) }
+    var unidentifiedPanelItemCount: Int {
+        let keys = Self.panelKeys(from: rows)
+        return rows.filter { $0.barbackRole == nil && $0.visibility != .notDrawn && keys[$0.id] == nil }.count
+    }
+
+    static func panelCandidates(from rows: [MenuBarItemRow]) -> [MenuBarItemRow] {
+        let keys = panelKeys(from: rows)
+        var seen = Set<ItemKey>()
+        // Prefer a drawn copy, so a mirrored off-screen copy does not request an unnecessary reveal.
+        let ordered = rows.filter(\.isShown) + rows.filter { !$0.isShown }
+        return ordered.compactMap { row in
+            guard row.barbackRole == nil, row.visibility != .notDrawn,
+                  let key = keys[row.id], seen.insert(key).inserted else { return nil }
+            var row = row
+            row.key = key
+            return row
+        }
+    }
+
+    private static func panelKeys(from rows: [MenuBarItemRow]) -> [UInt32: ItemKey] {
+        let displays = rows.reduce(into: [UInt32: Int]()) { $0[$1.id] = $1.display }
+        return ItemKeyAssigner.panelKeys(for: rows.map(\.item)) { displays[$0.windowID] }
+    }
 
     func requestAccessibility() {
+        guard scansEnabled else { return }
         let options = ["AXTrustedCheckOptionPrompt": true] as CFDictionary
-        accessibilityTrusted = AXIsProcessTrustedWithOptions(options)
+        updateAccessibilityStatus(AXIsProcessTrustedWithOptions(options))
     }
 
     /// Re-reads whether Accessibility is allowed, e.g. after the user comes back from System Settings.
     func refreshAccessibilityStatus() {
-        let trusted = AXIsProcessTrusted()
-        if trusted != accessibilityTrusted { accessibilityTrusted = trusted }
+        guard scansEnabled else { return }
+        updateAccessibilityStatus(AXIsProcessTrusted())
+    }
+
+    private func updateAccessibilityStatus(_ trusted: Bool) {
+        guard trusted != accessibilityTrusted else { return }
+        accessibilityTrusted = trusted
+        refresh()
     }
 
     /// Displays that show a menu bar, in CoreGraphics coordinates.
@@ -73,7 +119,11 @@ final class ItemsModel: ObservableObject {
     }
 
     func refresh() {
-        guard !isRefreshing else { return }
+        guard scansEnabled else { return }
+        guard !isRefreshing else {
+            refreshPending = true
+            return
+        }
         isRefreshing = true
         accessibilityTrusted = AXIsProcessTrusted()
 
@@ -89,10 +139,20 @@ final class ItemsModel: ObservableObject {
             let items = AccessibilityScanner.scan(tops: tops, trusted: trusted, apps: apps).items
             Log.signposter.endInterval("Scan items", signpost)
             await MainActor.run {
-                self.rows = Self.makeRows(items, own: own, displays: displays)
-                self.lastRefreshed = Date()
+                let currentTrust = AXIsProcessTrusted()
+                self.accessibilityTrusted = currentTrust
+                if currentTrust == trusted {
+                    self.rows = Self.makeRows(items, own: own, displays: displays)
+                    self.lastRefreshed = Date()
+                    Log.items.info("Scanned \(items.count) menu bar items")
+                } else {
+                    self.refreshPending = true
+                }
                 self.isRefreshing = false
-                Log.items.info("Scanned \(items.count) menu bar items")
+                if self.refreshPending {
+                    self.refreshPending = false
+                    self.refresh()
+                }
             }
         }
     }
@@ -117,6 +177,8 @@ final class ItemsModel: ObservableObject {
                 role = String(localized: "Barback ┊ separator")
             } else if own?.dividers.contains(where: { matches(item, $0) }) == true {
                 role = String(localized: "Barback divider")
+            } else if item.ownerPID == getpid() || item.sourcePID == getpid() {
+                role = String(localized: "Barback")
             }
             // Each item is compared only with the separators and notch of its own display.
             let placement = ItemClassifier.classify(

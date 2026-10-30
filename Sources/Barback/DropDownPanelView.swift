@@ -2,85 +2,53 @@ import AppKit
 import BarbackCore
 import SwiftUI
 
-// MARK: - Data
-
-/// One hidden item as the panel shows it.
 struct DropDownPanelItem: Identifiable, Equatable {
-    /// The item's window ID in the scan that produced it.
     let id: UInt32
-    /// Identity that survives relaunches.
     let key: ItemKey
     let title: String
     let icon: NSImage?
     let fallbackSymbol: String
     let display: Int?
-    /// Which section the item came from; decides how much needs revealing to reach it.
-    let box: DropDownContent.Box
+    let revealAction: SectionAction?
 
-    /// Always-hidden items live in their own box and can't be moved into a group.
-    var canGroup: Bool { box == .hidden }
+    @MainActor
+    init(row: MenuBarItemRow) {
+        id = row.id
+        key = row.key
+        title = row.panelTitle
+        icon = ItemIcons.image(for: row.item)
+        fallbackSymbol = ItemIcons.symbol(for: row.item)
+        display = row.display
+        revealAction = row.visibility == .shown ? nil : row.section == .alwaysHidden ? .showAll : .show
+    }
 }
 
-/// One box of the panel: a group, the ungrouped rest ("Other"), or the always-hidden section.
 struct DropDownPanelBox: Identifiable, Equatable {
-    enum Kind: Equatable {
-        case group(UUID)
-        case other
-        case alwaysHidden
-    }
-
-    var kind: Kind
+    var id: UUID
     var title: String
     var symbol: String
+    var layout: DropDownLayout
     var items: [DropDownPanelItem]
-    /// Without any groups a lone "Other" heading says nothing, so the box shows just its items.
-    var showsTitle = true
+    var unavailableCount: Int
 
-    var id: String {
-        switch kind {
-        case .group(let id): return id.uuidString
-        case .other: return "other"
-        case .alwaysHidden: return "alwaysHidden"
-        }
-    }
-
-    var groupID: UUID? {
-        if case .group(let id) = kind { return id }
-        return nil
-    }
-
-    /// Groups in the user's order (empty ones left out), then the ungrouped items, then the always-hidden box.
+    /// Only explicit selections appear, in saved order. Missing items never become an implicit "Other" box.
     static func make(
-        hidden: [DropDownPanelItem],
-        alwaysHidden: [DropDownPanelItem],
-        groups: [ItemGroup]
+        items: [DropDownPanelItem], groups: [ItemGroup], defaultLayout: DropDownLayout
     ) -> [DropDownPanelBox] {
-        var boxes = ItemGroups.partition(hidden, groups: groups, key: \.key).map { part -> DropDownPanelBox in
-            if let group = part.group {
-                return DropDownPanelBox(kind: .group(group.id), title: group.name, symbol: group.symbol, items: part.items)
-            }
+        let lookup = Dictionary(items.map { ($0.key, $0) }, uniquingKeysWith: { first, _ in first })
+        return groups.map { group in
+            let selected = group.itemKeys.compactMap { lookup[$0] }
             return DropDownPanelBox(
-                kind: .other, title: String(localized: "Other"), symbol: "ellipsis.circle", items: part.items,
-                showsTitle: !groups.isEmpty
+                id: group.id, title: group.name, symbol: group.symbol,
+                layout: group.layout ?? defaultLayout, items: selected,
+                unavailableCount: group.itemKeys.count - selected.count
             )
         }
-        if !alwaysHidden.isEmpty {
-            boxes.append(DropDownPanelBox(
-                kind: .alwaysHidden, title: String(localized: "Always Hidden"), symbol: "eye.slash", items: alwaysHidden
-            ))
-        }
-        return boxes
     }
 }
 
-/// How the panel and its tiles are drawn.
 enum DropDownPanelChrome: Equatable {
-    /// Liquid Glass (macOS 26).
-    case glass
-    /// Blurred materials, for earlier systems.
-    case material
-    /// Opaque, for Reduce Transparency.
-    case solid
+    case glass, material, solid
 
     static func current() -> DropDownPanelChrome {
         if NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency { return .solid }
@@ -89,41 +57,29 @@ enum DropDownPanelChrome: Equatable {
     }
 }
 
-/// Everything the panel view shows and every way it can act, so the view needs nothing but this.
 @MainActor
 final class DropDownPanelModel: ObservableObject {
     @Published var boxes: [DropDownPanelBox] = []
-    @Published var layout: DropDownLayout = .list
-    @Published var groups: [ItemGroup] = []
     @Published var isLoading = false
-    @Published var showsAccessibilityHint = false
-    /// False once the group limit is reached.
-    @Published var canAddGroup = true
+    @Published var canOpenItems = false
+    @Published var unidentifiedItemCount = 0
+    @Published var errorMessage: String?
     @Published var chrome: DropDownPanelChrome = .material
-    /// How tall the boxes may grow before they scroll; the controller lowers it on short screens.
     @Published var maxContentHeight: CGFloat = DropDownPanelView.defaultMaxContentHeight
     var onOpen: (DropDownPanelItem) -> Void = { _ in }
-    /// `nil` moves the item out of its group.
-    var onMove: (DropDownPanelItem, UUID?) -> Void = { _, _ in }
-    var onNewGroup: (DropDownPanelItem) -> Void = { _ in }
-    var onSetLayout: (DropDownLayout) -> Void = { _ in }
     var onOpenSettings: () -> Void = {}
+    var onEditPanel: (UUID) -> Void = { _ in }
     var onAllowAccessibility: () -> Void = {}
-    var onDismissAccessibilityHint: () -> Void = {}
+    var onRefresh: () -> Void = {}
+    var onReveal: () -> Void = {}
 }
-
-// MARK: - Panel
 
 private enum Metrics {
     static let tileRadius: CGFloat = 20
     static let gap: CGFloat = 10
     static let padding: CGFloat = 14
-    static let circle: CGFloat = 46
-    static let smallCircle: CGFloat = 28
 }
 
-/// The drop-down panel's content, laid out like Control Center: a header row, then boxes as rounded tiles
-/// (two small ones to a row, large ones across the whole width). The window around it supplies the glass.
 struct DropDownPanelView: View {
     static let width: CGFloat = 340
     static let defaultMaxContentHeight: CGFloat = 440
@@ -133,75 +89,73 @@ struct DropDownPanelView: View {
     var body: some View {
         VStack(spacing: Metrics.gap) {
             header
-            content
-            if model.showsAccessibilityHint { accessibilityHint }
-        }
-        .padding(Metrics.padding)
-        .frame(width: Self.width)
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel(Text("Hidden Items"))
-    }
-
-    // MARK: Header
-
-    private var header: some View {
-        HStack(spacing: 8) {
-            Text("Hidden Items")
-                .font(.system(size: 15, weight: .semibold))
-                .accessibilityAddTraits(.isHeader)
-            if model.isLoading, !model.boxes.isEmpty {
-                ProgressView()
-                    .controlSize(.small)
-                    .accessibilityLabel(Text("Scanning"))
-            }
-            Spacer(minLength: 8)
-            PanelGlassContainer(chrome: model.chrome) {
-                HStack(spacing: 8) {
-                    Button {
-                        model.onSetLayout(model.layout == .list ? .grid : .list)
-                    } label: {
-                        Image(systemName: model.layout == .list ? "square.grid.2x2" : "list.bullet")
-                            .font(.system(size: 12, weight: .semibold))
-                    }
-                    .buttonStyle(PanelCircleButtonStyle(chrome: model.chrome, diameter: Metrics.smallCircle))
-                    .accessibilityLabel(Text(model.layout == .list ? "Show as Grid" : "Show as List"))
-                    .help(Text(model.layout == .list ? "Show as Grid" : "Show as List"))
-
-                    Button {
-                        model.onOpenSettings()
-                    } label: {
-                        Image(systemName: "gearshape")
-                            .font(.system(size: 12, weight: .semibold))
-                    }
-                    .buttonStyle(PanelCircleButtonStyle(chrome: model.chrome, diameter: Metrics.smallCircle))
-                    .accessibilityLabel(Text("Panel Settings"))
-                    .help(Text("Panel Settings"))
-                }
-            }
-        }
-        .padding(.leading, 4)
-    }
-
-    // MARK: Content
-
-    @ViewBuilder
-    private var content: some View {
-        if model.boxes.isEmpty {
-            emptyState
-        } else {
             ScrollView {
-                PanelGlassContainer(chrome: model.chrome) { moduleGrid }
+                VStack(spacing: Metrics.gap) {
+                    if let error = model.errorMessage {
+                        failureNotice(error)
+                    }
+                    if !model.canOpenItems {
+                        accessibilityNotice
+                    }
+                    if model.boxes.isEmpty {
+                        emptyState
+                    } else {
+                        PanelGlassContainer(chrome: model.chrome) { moduleGrid }
+                    }
+                    if model.unidentifiedItemCount > 0 {
+                        Text("Unidentified items are not included. Manage available items in Panel Settings.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.horizontal, 6)
+                    }
+                }
+                .padding(1)
             }
             .scrollBounceBehavior(.basedOnSize)
             .frame(maxHeight: model.maxContentHeight)
         }
+        .padding(Metrics.padding)
+        .frame(width: Self.width)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(Text("Barback Panels"))
+    }
+
+    private var header: some View {
+        HStack(spacing: 8) {
+            Text("Panels")
+                .font(.system(size: 15, weight: .semibold))
+                .accessibilityAddTraits(.isHeader)
+            Spacer(minLength: 8)
+            if model.isLoading {
+                ProgressView().controlSize(.small)
+                    .frame(width: 40, height: 40)
+                    .accessibilityLabel(Text("Scanning items"))
+            } else {
+                Button { model.onRefresh() } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .buttonStyle(PanelCircleButtonStyle(chrome: model.chrome, diameter: 40))
+                .accessibilityLabel(Text("Refresh Items"))
+                .help(Text("Refresh Items"))
+            }
+            Button { model.onOpenSettings() } label: {
+                Image(systemName: "gearshape")
+            }
+            .buttonStyle(PanelCircleButtonStyle(chrome: model.chrome, diameter: 40))
+            .accessibilityLabel(Text("Panel Settings"))
+            .help(Text("Configure Panels"))
+        }
+        .padding(.leading, 4)
     }
 
     private var moduleGrid: some View {
         let boxes = model.boxes
-        let rows = DropDownModuleGrid.rows(
-            compact: boxes.map { DropDownModuleGrid.isCompact(itemCount: $0.items.count, layout: model.layout) }
-        )
+        let rows = DropDownModuleGrid.rows(compact: boxes.map {
+            $0.unavailableCount == 0 && !$0.items.isEmpty
+                && DropDownModuleGrid.isCompact(itemCount: $0.items.count, layout: $0.layout)
+        })
         return VStack(spacing: Metrics.gap) {
             ForEach(rows, id: \.self) { row in
                 HStack(alignment: .top, spacing: Metrics.gap) {
@@ -214,160 +168,155 @@ struct DropDownPanelView: View {
         }
     }
 
-    @ViewBuilder
     private var emptyState: some View {
-        VStack(spacing: 8) {
-            if model.isLoading {
-                ProgressView()
-                    .controlSize(.regular)
-                    .accessibilityHidden(true)
-                Text("Scanning…")
-                    .foregroundStyle(.secondary)
-            } else {
-                Image(systemName: "tray")
-                    .font(.system(size: 28, weight: .light))
-                    .foregroundStyle(.secondary)
-                    .accessibilityHidden(true)
-                Text("No Hidden Items")
-                    .font(.headline)
-                Text("Hold ⌘ and drag icons to the left of the │ separator to hide them.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+        VStack(spacing: 10) {
+            Image(systemName: "square.grid.2x2")
+                .font(.system(size: 28, weight: .light))
+                .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
+            Text("Make it your menu bar")
+                .font(.headline)
+            Text("Create a panel and choose its items, name and layout. Only your selections appear here.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+            Button("Configure Panels") { model.onOpenSettings() }
+                .barbackProminentButton()
         }
         .frame(maxWidth: .infinity)
-        .padding(.horizontal, 20)
-        .padding(.vertical, 28)
+        .padding(20)
         .platter(model.chrome)
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
     }
 
-    // MARK: Footer
-
-    private var accessibilityHint: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Image(systemName: "hand.raised")
-                    .foregroundStyle(.secondary)
-                    .accessibilityHidden(true)
-                Text("Allow Accessibility so Barback can open items from here")
-                    .font(.footnote)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            HStack(spacing: 8) {
-                Button("Allow…") { model.onAllowAccessibility() }
-                    .barbackButton()
-                    .controlSize(.small)
-                Button("Dismiss") { model.onDismissAccessibilityHint() }
-                    .buttonStyle(.borderless)
-                    .controlSize(.small)
-                    .foregroundStyle(.secondary)
-            }
-            .padding(.leading, 24)
+    private var accessibilityNotice: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("Allow Accessibility to open items", systemImage: "hand.raised")
+                .font(.headline)
+            Text("Barback cannot open an item's menu without permission. You can still reveal icons in the menu bar.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Button("Allow Accessibility...") { model.onAllowAccessibility() }
+                .barbackProminentButton()
+            Button("Show in Menu Bar") { model.onReveal() }
+                .barbackButton()
         }
-        .padding(12)
+        .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .platter(model.chrome, subtle: true)
-        .accessibilityElement(children: .contain)
+    }
+
+    private func failureNotice(_ message: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Could not open item", systemImage: "exclamationmark.triangle")
+                .font(.headline)
+            Text(message)
+                .font(.footnote)
+                .fixedSize(horizontal: false, vertical: true)
+            Button("Show in Menu Bar") { model.onReveal() }
+                .barbackButton()
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .platter(model.chrome, subtle: true)
     }
 }
 
-// MARK: - Boxes
-
-private struct DropDownBoxView: View {
+struct DropDownBoxView: View {
     let box: DropDownPanelBox
     @ObservedObject var model: DropDownPanelModel
 
-    private let columns = [GridItem(.adaptive(minimum: Metrics.circle), spacing: 8, alignment: .top)]
+    private let columns = [GridItem(.adaptive(minimum: 56), spacing: 8, alignment: .top)]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            if box.showsTitle {
-                HStack(spacing: 5) {
-                    Image(systemName: box.symbol)
-                        .font(.system(size: 11, weight: .semibold))
-                        .accessibilityHidden(true)
-                    Text(box.title)
-                        .font(.system(size: 12, weight: .semibold))
-                        .lineLimit(1)
-                        .truncationMode(.tail)
+            HStack(spacing: 6) {
+                Image(systemName: box.symbol).accessibilityHidden(true)
+                Text(box.title)
+                    .lineLimit(2)
+                    .accessibilityAddTraits(.isHeader)
+                Spacer(minLength: 0)
+                Button { model.onEditPanel(box.id) } label: {
+                    Image(systemName: "slider.horizontal.3")
+                        .frame(width: 40, height: 40)
                 }
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 4)
-                .padding(.top, 2)
-                .accessibilityElement(children: .combine)
-                .accessibilityAddTraits(.isHeader)
+                .buttonStyle(.borderless)
+                .accessibilityLabel(Text("Edit \(box.title)"))
+                .help(Text("Edit Panel"))
             }
-            switch model.layout {
-            case .list:
-                VStack(spacing: 0) {
-                    ForEach(box.items) { item in
-                        DropDownRow(item: item, box: box, model: model)
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundStyle(.secondary)
+            .padding(.leading, 4)
+
+            if box.items.isEmpty && box.unavailableCount == 0 {
+                Text("No items selected").font(.footnote).foregroundStyle(.secondary)
+                Button("Add Items") { model.onEditPanel(box.id) }.barbackButton()
+            } else {
+                switch box.layout {
+                case .list:
+                    VStack(spacing: 0) {
+                        ForEach(box.items) { item in
+                            itemButton(item, grid: false)
+                        }
+                    }
+                case .grid:
+                    LazyVGrid(columns: columns, alignment: .center, spacing: 8) {
+                        ForEach(box.items) { item in
+                            itemButton(item, grid: true)
+                        }
                     }
                 }
-            case .grid:
-                LazyVGrid(columns: columns, alignment: .center, spacing: 8) {
-                    ForEach(box.items) { item in
-                        DropDownCircle(item: item, box: box, model: model)
-                    }
+                if box.unavailableCount > 0 {
+                    Label("\(box.unavailableCount) unavailable", systemImage: "exclamationmark.circle")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                    Text("Not running or not safely identified. Your selections are saved.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                .padding(.bottom, 2)
             }
         }
-        .padding(8)
+        .padding(10)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .platter(model.chrome)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(Text(box.title))
     }
-}
 
-private struct DropDownRow: View {
-    let item: DropDownPanelItem
-    let box: DropDownPanelBox
-    @ObservedObject var model: DropDownPanelModel
-
-    var body: some View {
-        Button {
-            model.onOpen(item)
-        } label: {
-            HStack(spacing: 8) {
-                PanelItemIcon(item: item, size: 22)
-                Text(item.title)
-                    .font(.system(size: 13))
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                Spacer(minLength: 0)
+    private func itemButton(_ item: DropDownPanelItem, grid: Bool) -> some View {
+        Button { model.onOpen(item) } label: {
+            Group {
+                if grid {
+                    VStack(spacing: 6) {
+                        PanelItemIcon(item: item, size: 28)
+                        Text(item.title)
+                            .font(.system(size: 11))
+                            .lineLimit(2)
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: .infinity)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 64, alignment: .top)
+                    .padding(.vertical, 6)
+                } else {
+                    HStack(spacing: 8) {
+                        PanelItemIcon(item: item, size: 22)
+                        Text(item.title).font(.system(size: 13)).lineLimit(1)
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.horizontal, 6)
+                    .frame(minHeight: 40)
+                }
             }
-            .padding(.horizontal, 6)
-            .padding(.vertical, 3)
-            .frame(minHeight: 30)
             .contentShape(Rectangle())
         }
         .buttonStyle(PanelRowButtonStyle(cornerRadius: 10))
-        .panelItemMenu(item: item, box: box, model: model)
-        .panelItemAccessibility(item)
-    }
-}
-
-/// A round button like Control Center's toggles, holding the item's icon; the name is the tooltip.
-private struct DropDownCircle: View {
-    let item: DropDownPanelItem
-    let box: DropDownPanelBox
-    @ObservedObject var model: DropDownPanelModel
-
-    var body: some View {
-        Button {
-            model.onOpen(item)
-        } label: {
-            PanelItemIcon(item: item, size: 28)
-        }
-        .buttonStyle(PanelCircleButtonStyle(chrome: model.chrome, diameter: Metrics.circle))
+        .disabled(!model.canOpenItems || model.isLoading)
         .help(item.title)
-        .panelItemMenu(item: item, box: box, model: model)
-        .panelItemAccessibility(item)
+        .accessibilityLabel(Text(item.title))
+        .accessibilityHint(Text(model.canOpenItems ? "Opens this item's menu" : "Requires Accessibility permission"))
     }
 }
 
@@ -378,16 +327,11 @@ private struct PanelItemIcon: View {
     var body: some View {
         Group {
             if let icon = item.icon {
-                Image(nsImage: icon)
-                    .resizable()
-                    .interpolation(.high)
-                    .aspectRatio(contentMode: .fit)
+                Image(nsImage: icon).resizable().interpolation(.high).aspectRatio(contentMode: .fit)
             } else {
                 Image(systemName: item.fallbackSymbol)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
+                    .resizable().aspectRatio(contentMode: .fit)
                     .padding(size * 0.14)
-                    .foregroundStyle(.primary)
             }
         }
         .frame(width: size, height: size)
@@ -395,51 +339,11 @@ private struct PanelItemIcon: View {
     }
 }
 
-// MARK: - Item behaviour
-
-private extension View {
-    func panelItemAccessibility(_ item: DropDownPanelItem) -> some View {
-        self.accessibilityLabel(Text(item.title))
-            .accessibilityHint(Text("Opens this item’s menu"))
-    }
-
-    func panelItemMenu(item: DropDownPanelItem, box: DropDownPanelBox, model: DropDownPanelModel) -> some View {
-        self.contextMenu {
-            Button("Open") { model.onOpen(item) }
-            if item.canGroup {
-                Divider()
-                Menu("Move to Group") {
-                    ForEach(model.groups) { group in
-                        Toggle(isOn: Binding(
-                            get: { box.groupID == group.id },
-                            set: { _ in model.onMove(item, group.id) }
-                        )) {
-                            Label(group.name, systemImage: group.symbol)
-                        }
-                    }
-                    if !model.groups.isEmpty { Divider() }
-                    Toggle("Ungrouped", isOn: Binding(
-                        get: { box.groupID == nil },
-                        set: { _ in model.onMove(item, nil) }
-                    ))
-                    Divider()
-                    Button("New Group…") { model.onNewGroup(item) }
-                        .disabled(!model.canAddGroup)
-                }
-            }
-        }
-    }
-}
-
-// MARK: - Buttons
-
-/// Tracks the pointer. (An observable object stands in for `@State`, which needs a toolchain with the SwiftUI
-/// macro plugin; command-line-tools-only builds lack it.)
+// Observable state also supports Command Line Tools builds without SwiftUI's State macro plugin.
 private final class PanelHover: ObservableObject {
     @Published var isOver = false
 }
 
-/// Flat button that lights up under the pointer, like a menu row.
 private struct PanelRowButtonStyle: ButtonStyle {
     var cornerRadius: CGFloat
 
@@ -451,19 +355,23 @@ private struct PanelRowButtonStyle: ButtonStyle {
         let configuration: ButtonStyleConfiguration
         let cornerRadius: CGFloat
         @StateObject private var hover = PanelHover()
+        @Environment(\.accessibilityReduceMotion) private var reduceMotion
+        @Environment(\.isEnabled) private var isEnabled
 
         var body: some View {
             configuration.label
                 .background(
                     RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .fill(Color.primary.opacity(configuration.isPressed ? 0.16 : hover.isOver ? 0.10 : 0))
+                        .fill(Color.primary.opacity(isEnabled ? (configuration.isPressed ? 0.16 : hover.isOver ? 0.10 : 0) : 0))
                 )
+                .opacity(isEnabled ? 1 : 0.5)
+                .scaleEffect(configuration.isPressed && !reduceMotion ? 0.96 : 1)
+                .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: configuration.isPressed)
                 .onHover { hover.isOver = $0 }
         }
     }
 }
 
-/// Round button with its own glass (or material) disc, which brightens under the pointer.
 private struct PanelCircleButtonStyle: ButtonStyle {
     var chrome: DropDownPanelChrome
     var diameter: CGFloat
@@ -478,6 +386,7 @@ private struct PanelCircleButtonStyle: ButtonStyle {
         let diameter: CGFloat
         @StateObject private var hover = PanelHover()
         @Environment(\.colorSchemeContrast) private var contrast
+        @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
         var body: some View {
             configuration.label
@@ -486,6 +395,8 @@ private struct PanelCircleButtonStyle: ButtonStyle {
                 .overlay(Circle().fill(Color.primary.opacity(configuration.isPressed ? 0.20 : hover.isOver ? 0.14 : 0.07)))
                 .overlay(Circle().strokeBorder(Color.primary.opacity(contrast == .increased ? 0.55 : 0), lineWidth: 1))
                 .contentShape(Circle())
+                .scaleEffect(configuration.isPressed && !reduceMotion ? 0.96 : 1)
+                .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: configuration.isPressed)
                 .onHover { hover.isOver = $0 }
         }
     }
@@ -511,9 +422,6 @@ private struct PanelCircleButtonStyle: ButtonStyle {
     }
 }
 
-// MARK: - Tiles
-
-/// Lets Liquid Glass tiles share one rendering pass on macOS 26.
 private struct PanelGlassContainer<Content: View>: View {
     let chrome: DropDownPanelChrome
     @ViewBuilder var content: () -> Content
@@ -527,8 +435,6 @@ private struct PanelGlassContainer<Content: View>: View {
     }
 }
 
-/// A Control Center "module": a rounded tile of glass (macOS 26), material (earlier) or a flat tint (Reduce
-/// Transparency), with a visible border under Increase Contrast.
 private struct Platter: ViewModifier {
     let chrome: DropDownPanelChrome
     let subtle: Bool
@@ -546,7 +452,6 @@ private struct Platter: ViewModifier {
         if subtle || chrome == .solid {
             content.background(Color.primary.opacity(subtle ? 0.06 : 0.08), in: shape)
         } else if chrome == .glass, #available(macOS 26.0, *) {
-            // A touch of white keeps the tiles distinct from the panel's own glass in light appearance.
             content.glassEffect(.regular.tint(Color.white.opacity(scheme == .light ? 0.22 : 0.03)), in: shape)
         } else {
             content.background(.thinMaterial, in: shape)

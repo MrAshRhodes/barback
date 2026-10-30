@@ -19,5 +19,6 @@ let package = Package(
             path: "Sources/Barback"
         ),
         .testTarget(name: "BarbackCoreTests", dependencies: ["BarbackCore"], path: "Tests/BarbackCoreTests"),
+        .testTarget(name: "BarbackTests", dependencies: ["Barback"], path: "Tests/BarbackTests"),
     ]
 )
