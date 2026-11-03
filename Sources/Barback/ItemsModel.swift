@@ -21,6 +21,7 @@ struct MenuBarItemRow: Identifiable, Hashable {
     /// On macOS 26 Control Center hosts most items, so its name says nothing about an item's real source.
     var title: String {
         if let barbackRole { return barbackRole }
+        if item.isSystemItem, item.detail == nil { return String(localized: "Unidentified Item") }
         if item.isHostedBySystem, item.resolvedName == nil, item.title == nil {
             return String(localized: "Unidentified Item")
         }

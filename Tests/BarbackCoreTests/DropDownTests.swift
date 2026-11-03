@@ -447,12 +447,12 @@ struct ItemKeyTests {
 
 @Suite("Accessibility matching")
 struct AccessibilityMatchingTests {
-    @Test func bestMatchPicksTheClosestWithinTolerance() {
+    @Test func centerMatchingRejectsCompetingCandidatesWithinTolerance() {
         let frames = [CGRect(x: 100, y: 0, width: 24, height: 24), CGRect(x: 101.5, y: 0, width: 24, height: 24), CGRect(x: 300, y: 0, width: 24, height: 24)]
-        #expect(FrameMatcher.bestMatchIndex(for: CGRect(x: 101, y: 0, width: 24, height: 22), among: frames) == 1)
+        #expect(FrameMatcher.bestMatchIndex(for: CGRect(x: 101, y: 0, width: 24, height: 22), among: frames) == nil)
         #expect(FrameMatcher.bestMatchIndex(for: CGRect(x: 300.5, y: 0, width: 24, height: 24), among: frames) == 2)
         #expect(FrameMatcher.bestMatchIndex(for: CGRect(x: 200, y: 0, width: 24, height: 24), among: frames) == nil)
-        #expect(FrameMatcher.bestMatchIndex(for: CGRect(x: 100, y: 0, width: 40, height: 24), among: frames) == nil, "width must match too")
+        #expect(FrameMatcher.bestMatchIndex(for: CGRect(x: 100, y: 0, width: 40, height: 24), among: frames) == nil, "centers must match")
         #expect(FrameMatcher.bestMatchIndex(for: .zero, among: []) == nil)
     }
 
@@ -488,7 +488,7 @@ struct AccessibilityMatchingTests {
         var wifi = MenuBarItem(windowID: 1, ownerName: "Control Center", ownerPID: 50, frame: frame, isOnScreen: true)
         wifi = MenuBarItemParser.resolve(
             [wifi],
-            using: [AccessibilityItem(appName: "Control Center", bundleID: "com.apple.controlcenter", pid: 50, description: "Wi-Fi", frame: frame)]
+            using: [AccessibilityItem(appName: "Control Center", bundleID: "com.apple.controlcenter", pid: 50, description: "Wi-Fi", identifier: "com.apple.menuextra.wifi", frame: frame)]
         )[0]
         #expect(wifi.isSystemItem)
         #expect(wifi.panelName == "Wi-Fi")
