@@ -24,6 +24,12 @@ final class AppModel: ObservableObject {
     }
 
     @Published var hotkeyError: String?
+    /// The item whose shortcut is being recorded in Settings › Items (`isRecordingHotkey` is true meanwhile).
+    @Published var recordingItemHotkey: ItemKey?
+    /// Item shortcuts that could not be registered, by item.
+    @Published var itemHotkeyErrors: [ItemKey: String] = [:]
+    /// Item shortcuts just refused in Settings because another shortcut uses the same keys, by item.
+    @Published var itemHotkeyConflicts: [ItemKey: String] = [:]
     @Published var selectedPanelID: UUID?
     /// Shown in the menu and Settings when the separators are in an order that can't be used.
     @Published var layoutWarning: String?

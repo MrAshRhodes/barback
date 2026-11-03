@@ -7,6 +7,14 @@ See [GitHub Releases](https://github.com/MrAshRhodes/barback/releases) for downl
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-03
+
+### Added
+
+- Quick Search in the drop-down panel: type to filter panel items by name or app (ignoring case and accents), choose with ↑/↓, open with Return, and press Esc to clear the search before closing. The search field and results are labeled for VoiceOver.
+- Per-item global shortcuts and `barback://open?item=<key>` / `barback://open?name=<name>` links that open one menu bar item's menu (revealing it first). Set shortcuts and copy links in Settings › Items. Name matching ignores case and accents; unknown or ambiguous matches open nothing and are logged. Conflicting shortcuts are refused, and existing URL commands are unchanged.
+- Export and import settings as a readable, pretty-printed JSON file from Settings › General › Backup. Files carry a `formatVersion`; missing keys keep current values, unknown keys are ignored, and invalid or newer-format files are rejected without changing anything. Everything stays local.
+
 ## [0.2.3] - 2026-10-30
 
 ### Changed
@@ -65,7 +73,8 @@ First public release.
 - Universal (Apple silicon + Intel) app for macOS 14 Sonoma or later, distributed as a zip and a Homebrew cask (`brew install --cask mrashrhodes/tap/barback`).
 
 
-[Unreleased]: https://github.com/MrAshRhodes/barback/compare/v0.2.3...HEAD
+[Unreleased]: https://github.com/MrAshRhodes/barback/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/MrAshRhodes/barback/compare/v0.2.3...v0.3.0
 [0.2.3]: https://github.com/MrAshRhodes/barback/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/MrAshRhodes/barback/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/MrAshRhodes/barback/compare/v0.2.0...v0.2.1

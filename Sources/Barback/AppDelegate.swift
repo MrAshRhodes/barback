@@ -7,11 +7,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let loginItem = LoginItemController()
     private let itemsModel = ItemsModel()
     private let hotkey = GlobalHotkey()
+    /// One registration per item shortcut.
+    private var itemHotkeys: [ItemKey: GlobalHotkey] = [:]
+    private lazy var launcher = ItemLauncher(items: itemsModel)
     private let hover = HoverMonitor()
     private var statusBar: StatusBarController?
     private var settingsWindow: SettingsWindowController?
-    /// URL commands that arrived before the status items existed.
-    private var pendingURLCommands: [BarbackURLCommand] = []
+    /// URL requests that arrived before the status items existed.
+    private var pendingURLRequests: [BarbackURLRequest] = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -23,42 +26,60 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusBar.onShowAbout = { [weak self] in self?.showAboutPanel() }
         self.statusBar = statusBar
         itemsModel.statusBar = statusBar
+        launcher.reveal = { [weak statusBar] action in statusBar?.perform(action, userInitiated: true) }
+        launcher.onOpeningChange = { [weak statusBar] in statusBar?.externalItemOpeningDidChange($0) }
 
         hover.onEnterZone = { [weak self] in self?.statusBar?.revealFromHover() }
         hover.onExitMenuBar = { [weak self] in self?.statusBar?.hoverDidExit() }
         model.onSettingsChange = { [weak self] old, new in self?.settingsChanged(from: old, to: new) }
         model.onRecordingChange = { [weak self] recording in
             guard let self else { return }
-            if recording { self.hotkey.unregister() } else { self.applyHotkey() }
+            if recording {
+                self.hotkey.unregister()
+                self.unregisterItemHotkeys()
+            } else {
+                self.applyHotkey()
+                self.applyItemHotkeys()
+            }
         }
 
         applyHotkey()
+        applyItemHotkeys()
         applyHover()
         Log.app.info("Barback \(self.model.version, privacy: .public) started")
         if CommandLine.arguments.contains("--settings") { showSettings() }
-        let pending = pendingURLCommands
-        pendingURLCommands = []
+        let pending = pendingURLRequests
+        pendingURLRequests = []
         pending.forEach(run)
         statusBar.showWelcomeTipIfFirstLaunch()
     }
 
-    /// `barback://` URLs, e.g. `open -g barback://toggle` from Shortcuts, scripts or launchers.
+    /// `barback://` URLs, e.g. `open -g barback://toggle` or `open -g "barback://open?name=Wi-Fi"` from Shortcuts,
+    /// scripts or launchers.
     func application(_ application: NSApplication, open urls: [URL]) {
         for url in urls {
-            guard let command = BarbackURLCommand.parse(url) else {
-                Log.app.notice("Ignoring unsupported URL \(url.absoluteString, privacy: .public)")
+            let request: BarbackURLRequest
+            switch BarbackURLRequest.parse(url) {
+            case .success(let parsed): request = parsed
+            case .failure(let error):
+                Log.app.notice("Ignoring URL \(url.absoluteString, privacy: .public): \(error.message, privacy: .public)")
                 continue
             }
-            if statusBar == nil { pendingURLCommands.append(command) } else { run(command) }
+            if statusBar == nil { pendingURLRequests.append(request) } else { run(request) }
         }
     }
 
-    private func run(_ command: BarbackURLCommand) {
-        Log.app.info("URL command \(command.rawValue, privacy: .public)")
-        if let action = command.sectionAction {
-            statusBar?.perform(action, userInitiated: true, announce: true)
-        } else {
-            showSettings()
+    private func run(_ request: BarbackURLRequest) {
+        switch request {
+        case .command(let command):
+            Log.app.info("URL command \(command.rawValue, privacy: .public)")
+            if let action = command.sectionAction {
+                statusBar?.perform(action, userInitiated: true, announce: true)
+            } else {
+                showSettings()
+            }
+        case .open(let reference):
+            launcher.open(reference, source: "URL")
         }
     }
 
@@ -70,6 +91,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         hotkey.unregister()
+        unregisterItemHotkeys()
+        launcher.cancel()
         hover.stop()
     }
 
@@ -78,6 +101,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func settingsChanged(from old: BarbackSettings, to new: BarbackSettings) {
         statusBar?.settingsDidChange(from: old, to: new)
         if old.hotkey != new.hotkey { applyHotkey() }
+        if old.itemHotkeys != new.itemHotkeys { applyItemHotkeys() }
         if old.showOnHover != new.showOnHover { applyHover() }
     }
 
@@ -92,6 +116,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         } catch {
             model.hotkeyError = error.localizedDescription
+        }
+    }
+
+    private func unregisterItemHotkeys() {
+        itemHotkeys.values.forEach { $0.unregister() }
+        itemHotkeys = [:]
+    }
+
+    /// Registers each item shortcut; an item that isn't in the menu bar when pressed is logged and skipped.
+    private func applyItemHotkeys() {
+        unregisterItemHotkeys()
+        var errors: [ItemKey: String] = [:]
+        defer { if model.itemHotkeyErrors != errors { model.itemHotkeyErrors = errors } }
+        guard !model.isRecordingHotkey else { return }
+        for item in model.settings.itemHotkeys {
+            let registration = GlobalHotkey()
+            do {
+                try registration.register(item.combo) { [weak self] in
+                    self?.launcher.open(.key(item.key), source: "Shortcut \(item.combo.displayString)")
+                }
+                itemHotkeys[item.key] = registration
+            } catch {
+                errors[item.key] = error.localizedDescription
+            }
         }
     }
 
