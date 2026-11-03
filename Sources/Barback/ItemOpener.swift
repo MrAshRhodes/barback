@@ -47,7 +47,7 @@ final class ItemOpener {
                     && (display == nil || ItemClassifier.displayIndex(for: $0.frame, in: displays) == display)
                     && $0.isVisible(onScreens: displays.map(\.frame))
             }),
-                  FrameMatcher.bestMatchIndex(for: item.frame, among: scan.elements.map(\.frame)) != nil else { return nil }
+                  scan.elementIndex(itemAt: item.frame) != nil else { return nil }
             return Target(frame: item.frame, scan: scan)
         }) { result in
             switch result {

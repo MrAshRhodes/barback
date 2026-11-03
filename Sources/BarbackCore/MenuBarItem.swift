@@ -14,7 +14,7 @@ public struct MenuBarItem: Identifiable, Hashable, Sendable {
     public var resolvedName: String?
     /// Bundle identifier of the app that really owns the item, when known.
     public var bundleID: String?
-    /// The item's own Accessibility title or description (e.g. "Wi-Fi"), when known.
+    /// Canonical system-item label, or another app's Accessibility title or description.
     public var detail: String?
     /// Process that really owns the item when it differs from the window owner (system-hosted items).
     public var sourcePID: Int32?
@@ -162,13 +162,14 @@ public enum MenuBarItemParser {
         tolerance: CGFloat = 2
     ) -> [MenuBarItem] {
         guard !candidates.isEmpty else { return items }
-        let frames = candidates.map(\.frame)
-        return items.map { item in
-            guard let index = FrameMatcher.bestMatchIndex(for: item.frame, among: frames, tolerance: tolerance)
+        let matches = FrameMatcher.matchIndices(for: items.map(\.frame), among: candidates.map(\.frame), tolerance: tolerance)
+        return items.enumerated().map { itemIndex, item in
+            guard let index = matches[itemIndex]
             else { return item }
             let match = candidates[index]
             var item = item
-            item.resolvedName = match.displayName
+            let systemHost = match.bundleID.map { systemHostBundleIDs.contains($0) } ?? false
+            item.resolvedName = systemHost && match.detail == nil ? nil : match.displayName
             if let id = match.bundleID, !id.isEmpty { item.bundleID = id }
             item.detail = match.detail
             item.sourcePID = match.pid
