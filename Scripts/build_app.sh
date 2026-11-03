@@ -17,6 +17,8 @@
 # Environment:
 #   BARBACK_SIGN_IDENTITY   codesign identity. Default "-" (ad-hoc). A real identity also
 #                         turns on the hardened runtime and a secure timestamp.
+#   BARBACK_SPARKLE_PUBLIC_KEY   base64 Ed25519 public key (32 bytes). Required for a real
+#                         signing identity; source builds without it cannot self-update.
 #   SWIFTW_BUILD_SYSTEM   SwiftPM build system. Default "native": per-architecture --triple
 #                         builds merged with lipo behave the same on every toolchain there
 #                         (see Scripts/swiftw.sh).
@@ -58,7 +60,8 @@ Builds the Barback SwiftPM product and assembles dist/Barback.app (ad-hoc signed
   --build-number N      CFBundleVersion (default: $GITHUB_RUN_NUMBER, git commit count, or 1)
   --configuration C     release (default) or debug
 
-Environment: BARBACK_SIGN_IDENTITY (default "-", ad-hoc), SWIFTW_BUILD_SYSTEM (default native).
+Environment: BARBACK_SIGN_IDENTITY (default "-", ad-hoc), BARBACK_SPARKLE_PUBLIC_KEY
+(required for Developer ID), SWIFTW_BUILD_SYSTEM (default native).
 EOF
 }
 
@@ -122,6 +125,18 @@ BUILD_NUMBER="${BUILD_NUMBER:-1}"
 build_re='^[0-9]+(\.[0-9]+){0,2}$'
 [[ $BUILD_NUMBER =~ $build_re ]] || die "invalid build number '$BUILD_NUMBER' (digits and dots only)"
 
+SIGN_IDENTITY="${BARBACK_SIGN_IDENTITY:--}"
+PUBLIC_KEY="${BARBACK_SPARKLE_PUBLIC_KEY:-}"
+if [[ -n "$PUBLIC_KEY" ]]; then
+  key_re='^[A-Za-z0-9+/]{43}=$'
+  [[ $PUBLIC_KEY =~ $key_re && "$(printf '%s' "$PUBLIC_KEY" | base64 --decode | wc -c | tr -d ' ')" == 32 ]] \
+    || die "BARBACK_SPARKLE_PUBLIC_KEY must be a base64-encoded 32-byte Ed25519 public key"
+elif [[ "$SIGN_IDENTITY" != "-" ]]; then
+  die "Developer ID builds require BARBACK_SPARKLE_PUBLIC_KEY; refusing to ship a disabled updater"
+else
+  warn "No BARBACK_SPARKLE_PUBLIC_KEY: this development build cannot update itself"
+fi
+
 [[ -f "$PLIST_SRC" ]] || die "missing $PLIST_SRC"
 [[ -f "$ENTITLEMENTS" ]] || die "missing $ENTITLEMENTS"
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$PLIST_SRC")" == "$PRODUCT" ]] \
@@ -175,7 +190,7 @@ fi
 
 log "Assembling ${APP#"$ROOT"/}"
 rm -rf "$APP"
-mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$APP/Contents/Frameworks"
 
 if [[ -n "$X86_DIR" ]]; then
   lipo -create "$ARM_DIR/$PRODUCT" "$X86_DIR/$PRODUCT" -output "$APP/Contents/MacOS/$PRODUCT"
@@ -192,6 +207,9 @@ set_plist_string() {
 }
 set_plist_string CFBundleShortVersionString "$VERSION"
 set_plist_string CFBundleVersion "$BUILD_NUMBER"
+if [[ -n "$PUBLIC_KEY" ]]; then
+  set_plist_string SUPublicEDKey "$PUBLIC_KEY"
+fi
 plutil -lint "$PLIST" >/dev/null
 printf 'APPL????' >"$APP/Contents/PkgInfo"
 
@@ -211,8 +229,14 @@ for bundle in "$RESOURCE_DIR"/*.bundle; do
 done
 log "Copied $bundles SwiftPM resource bundle(s)"
 
-SIGN_IDENTITY="${BARBACK_SIGN_IDENTITY:--}"
-sign_flags=(--force --sign "$SIGN_IDENTITY" --entitlements "$ENTITLEMENTS")
+FRAMEWORK="$APP/Contents/Frameworks/Sparkle.framework"
+[[ -d "$RESOURCE_DIR/Sparkle.framework" ]] || die "SwiftPM did not produce Sparkle.framework"
+ditto "$RESOURCE_DIR/Sparkle.framework" "$FRAMEWORK"
+# Barback is not sandboxed. Keep the installer helpers, but not the unused XPC services.
+rm -rf "$FRAMEWORK/Versions/B/XPCServices"
+rm -f "$FRAMEWORK/XPCServices"
+
+sign_flags=(--force --sign "$SIGN_IDENTITY")
 if [[ "$SIGN_IDENTITY" == "-" ]]; then
   sign_flags+=(--timestamp=none)
   log "Signing ad-hoc"
@@ -221,9 +245,11 @@ else
   log "Signing with '$SIGN_IDENTITY' (hardened runtime)"
 fi
 xattr -cr "$APP"
-# This SwiftPM app contains only its main executable and resource-only bundles.
-# Do not use --deep to sign: any future nested executable must be signed inside-out first.
-codesign "${sign_flags[@]}" "$APP"
+# Sign inside-out without applying the host app's entitlements to Sparkle's helpers.
+codesign "${sign_flags[@]}" "$FRAMEWORK/Versions/B/Autoupdate"
+codesign "${sign_flags[@]}" "$FRAMEWORK/Versions/B/Updater.app"
+codesign "${sign_flags[@]}" "$FRAMEWORK"
+codesign "${sign_flags[@]}" --entitlements "$ENTITLEMENTS" "$APP"
 codesign --verify --deep --strict --verbose=2 "$APP"
 
 archs="$(lipo -archs "$APP/Contents/MacOS/$PRODUCT")"

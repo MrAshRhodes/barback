@@ -39,6 +39,10 @@ jobs:
       - name: Build
         run: Scripts/swiftw.sh build
 
+      # Needs the build above: SwiftPM downloads Sparkle's signing tools with the package.
+      - name: Test appcast signing with the real Sparkle tools
+        run: make updater-test
+
       - name: Test
         run: Scripts/swiftw.sh test
 

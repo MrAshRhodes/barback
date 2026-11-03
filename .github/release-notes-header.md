@@ -21,7 +21,11 @@ Core hiding needs **no** Screen Recording or Accessibility permission. The optio
 
 ## Update an existing installation
 
-Quit Barback first. **Homebrew:** `brew update && brew upgrade --cask barback`. **Manual:** repeat the download and verification steps above and replace Barback.app. Your settings and item positions are kept.
+**Homebrew:** quit Barback, then run `brew update && brew upgrade --cask barback`. Barback never self-updates a Homebrew-managed copy.
+
+**Direct download:** if your installed copy has **Check for Updates…**, use it to download a verified update and confirm installation. Otherwise, quit Barback and repeat the download and verification steps above to replace Barback.app once. Your settings and item positions are kept.
+
+Automatic checks are off by default. In **Settings → General → Updates**, choose Never, Daily, Weekly or Monthly (30 days). Enabling a schedule may check immediately when overdue. Updates always need your confirmation; no telemetry or system profile is sent. Checks contact GitHub with normal request metadata such as your IP address and app/Sparkle versions.
 
 When upgrading from an ad-hoc build (including 0.2.1), grant Accessibility again if you use it: remove the old Barback entry in **System Settings → Privacy & Security → Accessibility**, add `/Applications/Barback.app` again, enable it, and reopen Barback. Later releases retain the same bundle identifier and signing team.
 

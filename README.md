@@ -20,8 +20,8 @@ Barback is an independent project, released under the MIT license. It is not aff
 
 - **Fast.** Showing and hiding is a single layout change of Barback's own status items: no screen capturing, no animation polling, no background loops. It's instant, and idle CPU stays at ~0%.
 - **No special permissions.** Hiding, showing, the hotkey and hover never need Screen Recording or Accessibility access. The global hotkey uses the Carbon hotkey API, and the item list reads window metadata only. Accessibility is optional and used for two things: showing app names in the Settings › Items list on macOS 26, and, if you choose the drop-down panel, opening a hidden item from it (see below).
-- **No network, no telemetry.** Barback makes no network connections and collects nothing.
-- **Small and auditable.** One SwiftPM package, no third-party dependencies, MIT-licensed.
+- **No telemetry.** No analytics or system profiling. Update checks are off by default; Barback contacts GitHub only when you check manually or choose a schedule.
+- **Small and auditable.** One SwiftPM package with [Sparkle](https://sparkle-project.org/) for verified updates, MIT-licensed.
 - **Feels native.** Built to the macOS Human Interface Guidelines (see [Design](#design)).
 
 ## Install
@@ -45,7 +45,15 @@ Prefer a disk image? Download the `.dmg` and `.dmg.sha256` pair instead, verify 
 
 **First upgrade from an ad-hoc build:** quit Barback and replace the app. If you use Accessibility for item identification or the drop-down panel, remove the old Barback entry in **System Settings → Privacy & Security → Accessibility**, add `/Applications/Barback.app` again and enable it, then reopen Barback. The signing identity changes once during this migration; future releases keep the same bundle identifier and Developer ID team.
 
-To update: `brew update && brew upgrade --cask barback`.
+### Updates
+
+**Homebrew installs:** run `brew update && brew upgrade --cask barback`. Barback detects the Homebrew-managed copy and never updates it itself; **Check for Updates…** shows the command instead.
+
+**Direct downloads:** choose **Check for Updates…** from the menu, **Check Now** in Settings › General › Updates, or the update button in About. Automatic checks start at **Never**. You can opt into **Daily**, **Weekly**, or **Monthly** (every 30 days); the schedule is saved on this Mac. Choosing a schedule can check immediately if you have never checked or the last check is overdue. Returning to Never stops future scheduled checks, not a check already in progress.
+
+Sparkle verifies the signed release feed and archive before installation and asks before downloading or installing an update. Checks use the latest stable GitHub release, not prereleases. They send normal HTTP metadata, including your IP address and a User-Agent identifying the app and Sparkle versions; no analytics, system profile or settings are uploaded. Sparkle includes installer helpers inside the app, used when updating, not a separate always-running service.
+
+Versions released before this updater must be replaced manually once using the download instructions above. Source builds without an update signing key cannot self-update and link to Releases instead. You can always quit Barback and replace it manually; your settings and menu bar positions are kept.
 
 ## Usage
 
@@ -54,7 +62,7 @@ Barback adds a **chevron** to your menu bar and a thin **separator** to its left
 1. **Choose what to hide.** Hold **⌘ Command** and drag any menu bar item to the **left of the separator**. macOS remembers the positions.
 2. **Show or hide.** Click the chevron, or press **⌃⌥⌘B** from anywhere. Items left of the separator slide out of view or back in.
 3. **Always-hidden items.** Enable the second (always-hidden) separator in Settings and ⌘-drag items to its left. **Option-click** the chevron to reveal them too.
-4. **Menu.** Right-click the chevron for Show/Hide, Show Always-Hidden, Settings… (⌘,), About, Getting Started and Quit.
+4. **Menu.** Right-click the chevron for Show/Hide, Show Always-Hidden, Settings… (⌘,), About, Check for Updates…, Getting Started and Quit.
 5. **Make it yours.** In Settings › Appearance, pick a style or choose the icon (chevron, eye, wine glass, mug, Carlos’ Marañon and more), its weight, separator styles (line, dashed, dot, double line, chevron or invisible) and up to three extra dividers for grouping items.
 6. **Optional drop-down panels.** In Settings › Panel, click **Add Panel**, give it a name, and choose its items. This sets **Click Barback to** *Open my panels*. Clicking the chevron (or pressing the hotkey) then opens your panels under the icon. See below.
 
@@ -64,7 +72,7 @@ Hidden items re-hide automatically after 10 seconds (configurable, or never), bu
 
 **Settings**
 
-- **General**: launch at login, auto-rehide delay, show on hover, hide when switching apps, always-hidden section, global hotkey, and Export…/Import… of your settings (see below).
+- **General**: launch at login, auto-rehide delay, show on hover, hide when switching apps, always-hidden section, global hotkey, Export…/Import… of your settings (see below), and update checks.
 - **Appearance**: a live preview plus styles (Classic, Minimal, Cocktail, Eye, Arrows), the toggle icon and its weight, an optional accent tint while hidden items are showing, separator styles for each section, and extra dividers. These change only Barback's own items. An invisible separator still leaves a narrow gap you can ⌘-drag.
 - **Items**: a read-only list of every menu bar item, the process that owns its window, its section and whether it is currently on screen. It is scanned only when you open the tab or click Refresh (⌘R), off the main thread. On a Mac with a notch, items that would sit behind the notch are flagged so you can hide something else to make room. On macOS 26 Tahoe, Control Center hosts most items' windows, so their source app can't be read from window metadata and they're listed as *Unidentified Item*; if you choose to allow Accessibility access, Barback matches them to app names. Identifiable items also get a shortcut recorder and a **Copy Link** button (see *Item shortcuts and links* below); an **Item Shortcuts** list shows every saved shortcut, including ones for items that aren't in the menu bar right now.
 - **Panel**: what clicking Barback does (show the items in the menu bar, the default, or open your panels), and a complete editor for up to 12 panels: select their items, rename, choose an icon and list/grid layout, and reorder panels or their items.
@@ -96,7 +104,7 @@ With **Click Barback to** set to *Open my panels* (Settings › Panel; the defau
 }
 ```
 
-- The file holds everything Barback keeps in its preferences: hiding options, the hotkey (`null` when turned off), per-item shortcuts, appearance, click action, panel layout and your panels with their items. It leaves out per-Mac state: menu bar icon positions, the first-launch tip and Launch at Login (a system setting).
+- The file holds hiding options, the hotkey (`null` when turned off), per-item shortcuts, appearance, click action, panel layout and your panels with their items. It leaves out per-Mac state: menu bar icon positions, the first-launch tip, Launch at Login (a system setting), and Sparkle's update schedule and last-check date.
 - Settings missing from a file keep their current values (objects like `appearance` are merged key by key; `groups` is replaced as a whole), and keys Barback doesn't know are ignored.
 - Out-of-range values are fixed the same way as saved settings (for example the rehide delay is capped at an hour and invalid group names or symbols are repaired). Wrong types, unknown choices, malformed JSON or a file from a newer, unsupported `formatVersion` are rejected with an explanation, and your settings are left exactly as they were.
 
@@ -162,7 +170,7 @@ Barback was inspired by studying how Bartender behaves. It is deliberately much 
 | Screen Recording permission | Not needed | Requested for its item images and layout features |
 | Accessibility permission | Optional (app names in the Items list, opening items from the drop-down panel) | Requested to move and click items |
 | How hiding works | Expands its own separator status item | The same separator technique, plus automatic rearranging of other apps' items |
-| Background activity when idle | None (event-driven) | Varies with enabled features |
+| Background activity when idle | Event-driven; update checks only if scheduled | Varies with enabled features |
 | Minimum macOS | 14 Sonoma | See vendor's site |
 
 If you rely on Bartender's advanced features, keep using it; if you only want a fast, permission-free hider, Barback is for you.
@@ -173,7 +181,7 @@ Before writing Barback we studied Bartender 6 (6.6.2 on macOS 26) from the outsi
 
 - **Hiding itself is cheap.** Bartender hides items the same way Hidden Bar, Ice and Barback do: by widening one of its own separator status items. That needs no permission and no background work, so Barback copies it.
 - **The heavy parts are the extras.** Automatic rearranging works by posting synthetic ⌘-drag mouse events while briefly intercepting the user's clicks; the Bartender Bar, search and item identification on Tahoe rely on capturing images of menu bar items (Screen Recording); app names come from Accessibility queries to every menu-bar app; and optional menu bar styling redraws on a timer. Bartender's own support pages and release notes acknowledge mouse movement, CPU and WindowServer load from these paths, and many releases tune them.
-- **What Barback does differently.** It's event-driven: the only timers are one-shot (auto-rehide, hover dwell and the 0.4 s hover exit delay, the same delay Bartender uses), with no polling loops, screen capture, event taps, synthetic events, private APIs, helper processes or network access. You arrange items yourself with ⌘-drag, which macOS remembers.
+- **What Barback does differently.** Hiding is event-driven: one-shot timers handle auto-rehide, hover dwell and the 0.4 s hover exit delay, with no polling loops, screen capture, event taps, synthetic events or private APIs. You arrange items yourself with ⌘-drag, which macOS remembers. The optional Sparkle updater is separate from hiding: its network checks start off, and its installer helpers run only when updating.
 - **What Barback leaves out** on purpose: automatic arranging, the secondary bar, image-based search (Barback's Quick Search only matches the names of items you put in a panel), triggers, presets, spacing changes, menu bar styling (Barback only restyles its own icons) and widgets. These all need the permissions and machinery above.
 - **macOS 26 caveat.** On Tahoe, Control Center owns the windows of most menu bar items, so any tool reading window metadata sees "Control Center" rather than the real app. Bartender works around this with image hashing and an Accessibility helper; Barback labels such items honestly and only uses Accessibility if you opt in.
 
@@ -185,6 +193,7 @@ Requires Swift 5.9+ (full Xcode or just the Command Line Tools).
 make app        # build and ad-hoc sign dist/Barback.app
 make run        # build, then open it
 make test       # run the test suite
+make updater-test # exercise appcast signing with Sparkle's tools and public test keys
 make zip        # universal build -> dist/Barback-<version>.zip (+ .sha256, dist/barback.rb)
 make tap        # render the Homebrew cask to dist/barback.rb from the local zip
 make help       # every target
@@ -195,6 +204,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the project layout, Command Line Tool
 ## Credits
 
 Barback stands on the shoulders of earlier open-source menu bar managers that pioneered the separator technique: [Hidden Bar](https://github.com/dwarvesf/hidden), [Ice](https://github.com/jordanbaird/Ice) and [Dozer](https://github.com/Mortennn/Dozer). Thank you to their authors. Bartender is a trademark of its respective owner.
+
+Updates use [Sparkle](https://sparkle-project.org/), distributed under its [permissive license and bundled third-party notices](https://github.com/sparkle-project/Sparkle/blob/2.10.1/LICENSE), retained in the embedded framework.
 
 ## License
 

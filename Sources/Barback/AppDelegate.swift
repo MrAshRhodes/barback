@@ -11,6 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var itemHotkeys: [ItemKey: GlobalHotkey] = [:]
     private lazy var launcher = ItemLauncher(items: itemsModel)
     private let hover = HoverMonitor()
+    private lazy var updates = UpdateController.makeDefault()
     private var statusBar: StatusBarController?
     private var settingsWindow: SettingsWindowController?
     /// URL requests that arrived before the status items existed.
@@ -20,7 +21,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.accessory)
         NSApp.mainMenu = makeMainMenu()
 
-        let statusBar = StatusBarController(model: model, items: itemsModel)
+        let statusBar = StatusBarController(model: model, items: itemsModel, updates: updates)
         statusBar.onOpenSettings = { [weak self] in self?.showSettings() }
         statusBar.onOpenPanelSettings = { [weak self] in self?.openSettings(tab: .panel) }
         statusBar.onShowAbout = { [weak self] in self?.showAboutPanel() }
@@ -155,7 +156,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func openSettings(tab: SettingsWindowController.Tab?) {
         if settingsWindow == nil {
-            settingsWindow = SettingsWindowController(model: model, loginItem: loginItem, items: itemsModel)
+            settingsWindow = SettingsWindowController(
+                model: model, loginItem: loginItem, items: itemsModel, updates: updates
+            )
         }
         settingsWindow?.show(tab: tab)
     }
@@ -193,6 +196,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let appItem = NSMenuItem()
         let appMenu = NSMenu(title: BarbackInfo.name)
         appMenu.addItem(withTitle: String(localized: "About Barback"), action: #selector(showAboutPanel), keyEquivalent: "")
+        appMenu.addItem(updates.makeMenuItem())
         appMenu.addItem(.separator())
         appMenu.addItem(withTitle: String(localized: "Settings…"), action: #selector(showSettings), keyEquivalent: ",")
         appMenu.addItem(.separator())

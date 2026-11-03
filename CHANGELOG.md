@@ -7,6 +7,14 @@ See [GitHub Releases](https://github.com/MrAshRhodes/barback/releases) for downl
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-03
+
+### Added
+
+- Sparkle updates for direct downloads: Check for Updates in the menu and About, plus Never (the default), Daily, Weekly or Monthly (30-day) checks in Settings. Enabling a schedule can check immediately when overdue. Downloads and installations always need confirmation; system profiling stays off.
+- Homebrew-managed copies stay on the tap's update path and show the `brew update && brew upgrade --cask barback` command instead of self-updating. Source builds without an update signing key link to Releases.
+- Signed update feeds and archive verification in release packaging, with inside-out signing of Sparkle's installer helpers. Existing versions need one manual upgrade to gain the updater.
+
 ### Fixed
 
 - Identify known Control Center menu bar items such as Wi-Fi, Bluetooth, Battery and Sound by stable Accessibility identifiers, so panels, per-item shortcuts, links and Quick Search keep their assignments across state and language changes. Match centered Accessibility icons inside wider menu bar windows, including hidden items, while rejecting ambiguous matches in both identification and opening. Bound slow Accessibility reads without renaming items whose identity could not be read, add private debug diagnostics, and explain why items without a recognized stable identity remain excluded. No Screen Recording or synthetic clicks are used.
@@ -77,7 +85,8 @@ First public release.
 - Universal (Apple silicon + Intel) app for macOS 14 Sonoma or later, distributed as a zip and a Homebrew cask (`brew install --cask mrashrhodes/tap/barback`).
 
 
-[Unreleased]: https://github.com/MrAshRhodes/barback/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/MrAshRhodes/barback/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/MrAshRhodes/barback/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/MrAshRhodes/barback/compare/v0.2.3...v0.3.0
 [0.2.3]: https://github.com/MrAshRhodes/barback/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/MrAshRhodes/barback/compare/v0.2.1...v0.2.2

@@ -12,16 +12,18 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     private let tabs = NSTabViewController()
     private let loginItem: LoginItemController
     private let itemsModel: ItemsModel
+    private let updates: UpdateController
 
-    init(model: AppModel, loginItem: LoginItemController, items: ItemsModel) {
+    init(model: AppModel, loginItem: LoginItemController, items: ItemsModel, updates: UpdateController) {
         self.loginItem = loginItem
         self.itemsModel = items
+        self.updates = updates
 
         tabs.tabStyle = .toolbar
         tabs.canPropagateSelectedChildViewControllerTitle = true
         tabs.addTabViewItem(Self.tab(
             String(localized: "General"), symbol: "gearshape",
-            GeneralSettingsView(model: model, loginItem: loginItem)
+            GeneralSettingsView(model: model, loginItem: loginItem, updates: updates)
         ))
         tabs.addTabViewItem(Self.tab(
             String(localized: "Appearance"), symbol: "paintbrush",
@@ -37,7 +39,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         ))
         tabs.addTabViewItem(Self.tab(
             String(localized: "About"), symbol: "info.circle",
-            AboutSettingsView(model: model)
+            AboutSettingsView(model: model, updates: updates)
         ))
 
         let window = NSWindow(contentViewController: tabs)
@@ -62,6 +64,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     func show(tab: Tab? = nil) {
         if let tab { tabs.selectedTabViewItemIndex = tab.rawValue }
         loginItem.refresh()
+        updates.refresh()
         NSApp.activate()
         showWindow(nil)
         window?.makeKeyAndOrderFront(nil)
@@ -69,6 +72,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
 
     func windowDidBecomeKey(_ notification: Notification) {
         loginItem.refresh()
+        updates.refresh()
     }
 
     @objc private func accessibilityOptionsChanged() {

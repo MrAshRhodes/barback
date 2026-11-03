@@ -33,6 +33,32 @@ details="$(codesign --display --verbose=4 "$TARGET" 2>&1)" \
 grep -q '^TeamIdentifier=TB3Z5R7SY8$' <<<"$details" || die "unexpected signing team"
 grep -q '^Timestamp=.' <<<"$details" || die "missing secure timestamp"
 if [[ "$TARGET" == *.app ]]; then
+  plist="$TARGET/Contents/Info.plist"
+  public_key="$(/usr/libexec/PlistBuddy -c 'Print :SUPublicEDKey' "$plist")" \
+    || die "app is missing its Sparkle public key"
+  key_re='^[A-Za-z0-9+/]{43}=$'
+  [[ $public_key =~ $key_re ]] || die "invalid Sparkle public key"
+  [[ "$(/usr/libexec/PlistBuddy -c 'Print :SUFeedURL' "$plist")" == \
+    "https://github.com/MrAshRhodes/barback/releases/latest/download/appcast.xml" ]] \
+    || die "unexpected Sparkle feed URL"
+  for setting in SURequireSignedFeed SUVerifyUpdateBeforeExtraction; do
+    [[ "$(/usr/libexec/PlistBuddy -c "Print :$setting" "$plist")" == true ]] \
+      || die "$setting must be enabled"
+  done
+  framework="$TARGET/Contents/Frameworks/Sparkle.framework"
+  for nested in "$framework/Versions/B/Autoupdate" "$framework/Versions/B/Updater.app" "$framework"; do
+    [[ -e "$nested" ]] || die "missing Sparkle component: $nested"
+    codesign --verify --strict --all-architectures \
+      -R="$(cat "$ROOT/packaging/signing/developer-id-requirement.txt")" "$nested" \
+      || die "Sparkle component does not satisfy Barback's Developer ID policy: $nested"
+    for arch in $(lipo -archs "$TARGET/Contents/MacOS/Barback"); do
+      nested_details="$(codesign --display --arch "$arch" --verbose=4 "$nested" 2>&1)" \
+        || die "cannot read the $arch signature: $nested"
+      grep -q '^CodeDirectory .*flags=.*runtime' <<<"$nested_details" \
+        || die "missing hardened runtime: $nested ($arch)"
+      grep -q '^Timestamp=.' <<<"$nested_details" || die "missing secure timestamp: $nested ($arch)"
+    done
+  done
   archs="$(lipo -archs "$TARGET/Contents/MacOS/Barback")" || die "cannot read app architectures"
   [[ -n "$archs" ]] || die "the app has no architectures"
   for arch in $archs; do

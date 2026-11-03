@@ -335,6 +335,8 @@ test("release secrets are only environment entries of the steps that need them",
     "Prepare notarization credentials": [
       "BARBACK_NOTARY_ISSUER_ID", "BARBACK_NOTARY_KEY_ID", "BARBACK_NOTARY_KEY_P8_BASE64"],
     "Build and package": ["BARBACK_NOTARY_ISSUER_ID", "BARBACK_NOTARY_KEY_ID"],
+    "Require update signing configuration": ["BARBACK_SPARKLE_PRIVATE_KEY"],
+    "Generate and verify the signed update feed": ["BARBACK_SPARKLE_PRIVATE_KEY"],
   };
   for (const [name, body] of Object.entries(steps)) {
     const used = [...body.matchAll(/secrets\.(\w+)/g)].map((match) => match[1]).sort();

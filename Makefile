@@ -20,7 +20,7 @@ APP := dist/Barback.app
 ZIP := dist/Barback-$(VERSION).zip
 VERSION_ARG := $(if $(VERSION),--version $(VERSION),)
 
-.PHONY: help build release test signing-test app universal run zip dmg install icon tap tap-dry-run publish-tap changelog-check prepare-release lint clean
+.PHONY: help build release test signing-test updater-test app universal run zip dmg install icon tap tap-dry-run publish-tap changelog-check prepare-release lint clean
 
 help: ## Show this help
 	@echo "Usage: make <target> [VERSION=x.y.z] [CONFIG=release|debug] [INSTALL_DIR=/Applications]"
@@ -38,6 +38,9 @@ test: ## Run the test suite
 
 signing-test: ## Test signing and notarization failure gates without credentials
 	node --test Tests/SigningTests/*.test.cjs
+
+updater-test: build ## Test appcast signing with the real Sparkle tools and a public RFC 8032 test key
+	node --test Tests/UpdaterTests/*.test.cjs
 
 app: ## Assemble dist/Barback.app for this Mac and sign it ad-hoc
 	Scripts/build_app.sh $(VERSION_ARG) --configuration $(CONFIG)
