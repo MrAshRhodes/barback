@@ -16,6 +16,9 @@ struct AccessibilityScannerTests {
         var rootDelay: TimeInterval = 0
         var rootError: AXError = .success
         var failedAttribute: String?
+        var attributeErrors: [String: AXError] = [:]
+        var title: String?
+        var queriedAttributes: [String] = []
         var timeoutError: AXError = .success
         var timeouts: [(element: AXUIElement, value: Float)] = []
         var queried: [AXUIElement] = []
@@ -36,11 +39,13 @@ struct AccessibilityScannerTests {
                 setTimeout: { self.timeouts.append(($0, $1)); return self.timeoutError },
                 copyAttribute: { element, attribute in
                     self.queried.append(element)
+                    self.queriedAttributes.append(attribute)
                     let cost = attribute == "AXExtrasMenuBar" ? self.rootDelay : self.delay
                     let timeout = TimeInterval(self.timeouts.last!.value)
                     self.time += min(cost, timeout)
                     if cost > timeout { return (.cannotComplete, nil) }
                     if attribute == self.failedAttribute { return (.cannotComplete, nil) }
+                    if let error = self.attributeErrors[attribute] { return (error, nil) }
                     switch attribute {
                     case "AXExtrasMenuBar": return (self.rootError, self.rootError == .success ? self.bar : nil)
                     case kAXChildrenAttribute: return (.success, [self.child, self.zeroChild] as CFArray)
@@ -52,6 +57,7 @@ struct AccessibilityScannerTests {
                         return (.success, AXValueCreate(.cgSize, &size))
                     case kAXIdentifierAttribute: return (.success, "com.apple.menuextra.sound" as CFString)
                     case kAXDescriptionAttribute: return (.success, "Sound, muted" as CFString)
+                    case kAXTitleAttribute where self.title != nil: return (.success, self.title! as CFString)
                     default: return (.attributeUnsupported, nil)
                     }
                 },
@@ -136,6 +142,75 @@ struct AccessibilityScannerTests {
         #expect(entries.count == 1)
         #expect(fixture.timeouts.allSatisfy { $0.value <= 0.1 })
         #expect(entries[0].item.detail == "Sound, muted", "Third-party descriptions keep existing behavior")
+    }
+
+    private static let thirdParty = RunningAppInfo(pid: 60, name: "Third Party", bundleID: "com.example.app")
+
+    @Test func onlySystemHostsReadIdentifiers() {
+        let fixture = Fixture()
+        _ = AccessibilityScanner.extras(apps: [Self.thirdParty], reader: fixture.reader)
+        #expect(fixture.queriedAttributes.contains(kAXDescriptionAttribute))
+        #expect(!fixture.queriedAttributes.contains(kAXIdentifierAttribute))
+        _ = fixture.scan()
+        #expect(fixture.queriedAttributes.contains(kAXIdentifierAttribute))
+    }
+
+    @Test(arguments: [AXError.cannotComplete, .failure, .apiDisabled])
+    func failedThirdPartyDescriptionIsNotPublishedUnderAnotherKey(error: AXError) {
+        let fixture = Fixture()
+        fixture.title = "Account A"
+        fixture.attributeErrors[kAXDescriptionAttribute] = error
+        let entries = AccessibilityScanner.extras(apps: [Self.thirdParty], reader: fixture.reader)
+        #expect(entries.isEmpty)
+        #expect(!fixture.queriedAttributes.contains(kAXTitleAttribute), "A failed description must not fall back to the title")
+    }
+
+    @Test func slowThirdPartyHostDoesNotPublishItemsWithoutTheirDescription() {
+        let fixture = Fixture()
+        fixture.delay = 0.09
+        let entries = AccessibilityScanner.extras(apps: [Self.thirdParty], reader: fixture.reader)
+        #expect(Array(fixture.queriedAttributes.prefix(5)) == [
+            "AXExtrasMenuBar", kAXChildrenAttribute, kAXPositionAttribute, kAXSizeAttribute, kAXDescriptionAttribute,
+        ], "The description read times out on the remaining budget")
+        #expect(!fixture.queriedAttributes.contains(kAXTitleAttribute))
+        #expect(entries.isEmpty)
+    }
+
+    @Test(arguments: [AXError.noValue, .attributeUnsupported])
+    func absentThirdPartyDescriptionFallsBackToTitle(error: AXError) {
+        let fixture = Fixture()
+        fixture.title = "Account A"
+        fixture.attributeErrors[kAXDescriptionAttribute] = error
+        let entries = AccessibilityScanner.extras(apps: [Self.thirdParty], reader: fixture.reader)
+        #expect(entries.map(\.item.detail) == ["Account A"])
+    }
+
+    @Test func absentThirdPartyLabelStillPublishesAndFailedTitleDoesNot() {
+        let fixture = Fixture()
+        fixture.attributeErrors[kAXDescriptionAttribute] = .noValue
+        let entries = AccessibilityScanner.extras(apps: [Self.thirdParty], reader: fixture.reader)
+        #expect(entries.count == 1)
+        #expect(entries.first?.item.detail == nil)
+        fixture.attributeErrors[kAXTitleAttribute] = .cannotComplete
+        #expect(AccessibilityScanner.extras(apps: [Self.thirdParty], reader: fixture.reader).isEmpty)
+    }
+
+    @Test func systemHostChildWithFailedIdentifierIsNotPublished() {
+        let fixture = Fixture()
+        fixture.failedAttribute = kAXIdentifierAttribute
+        #expect(AccessibilityScanner.extras(apps: [fixture.app], reader: fixture.reader).isEmpty)
+        fixture.failedAttribute = nil
+        fixture.attributeErrors[kAXIdentifierAttribute] = .noValue
+        let entries = AccessibilityScanner.extras(apps: [fixture.app], reader: fixture.reader)
+        #expect(entries.count == 1, "An absent identifier publishes an unidentified item as before")
+        #expect(entries.first?.item.detail == nil)
+    }
+
+    @Test func systemHostIdentityDoesNotDependOnItsDescription() {
+        let fixture = Fixture()
+        fixture.failedAttribute = kAXDescriptionAttribute
+        let entries = AccessibilityScanner.extras(apps: [fixture.app], reader: fixture.reader)
+        #expect(entries.map(\.item.detail) == ["Sound"])
     }
 
     @Test func permissionDeniedDoesNotQueryAccessibility() {

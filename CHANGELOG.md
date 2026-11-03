@@ -9,7 +9,7 @@ See [GitHub Releases](https://github.com/MrAshRhodes/barback/releases) for downl
 
 ### Fixed
 
-- Identify known Control Center menu bar items such as Wi-Fi, Bluetooth, Battery and Sound by stable Accessibility identifiers, so panels, per-item shortcuts, links and Quick Search keep their assignments across state and language changes. Match centered Accessibility icons inside wider menu bar windows, including hidden items, while rejecting ambiguous matches in both identification and opening. Bound slow Accessibility reads, add private debug diagnostics, and explain why items without a recognized stable identity remain excluded. No Screen Recording or synthetic clicks are used.
+- Identify known Control Center menu bar items such as Wi-Fi, Bluetooth, Battery and Sound by stable Accessibility identifiers, so panels, per-item shortcuts, links and Quick Search keep their assignments across state and language changes. Match centered Accessibility icons inside wider menu bar windows, including hidden items, while rejecting ambiguous matches in both identification and opening. Bound slow Accessibility reads without renaming items whose identity could not be read, add private debug diagnostics, and explain why items without a recognized stable identity remain excluded. No Screen Recording or synthetic clicks are used.
 
 ## [0.3.0] - 2026-11-03
 

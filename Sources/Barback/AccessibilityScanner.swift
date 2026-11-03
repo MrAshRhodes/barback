@@ -86,27 +86,42 @@ enum AccessibilityScanner {
                 let elapsed = (reader.now() - started) * 1000
                 Log.items.debug("AX host=\(app.bundleID ?? app.name, privacy: .private) ms=\(elapsed) children=\(childCount) entries=\(resolvedCount) errors=\(errorCount)")
             }
-            func read(_ element: AXUIElement, _ attribute: String) -> CFTypeRef? {
+            func attribute(_ element: AXUIElement, _ attribute: String) -> AttributeRead {
                 let remaining = deadline - reader.now()
                 guard remaining > 0 else {
                     errorCount += 1
                     Log.items.debug("AX host=\(app.bundleID ?? app.name, privacy: .private) exhausted scan budget at \(attribute, privacy: .public)")
-                    return nil
+                    return .failed
                 }
                 // A timeout on the app root does not apply to the bar or its children.
                 let timeoutError = reader.setTimeout(element, Float(min(timeout, remaining)))
                 guard timeoutError == .success else {
                     errorCount += 1
                     Log.items.debug("AX timeout setup failed: \(timeoutError.rawValue)")
-                    return nil
+                    return .failed
                 }
                 let response = reader.copyAttribute(element, attribute)
-                guard response.error == .success else {
+                switch response.error {
+                case .success:
+                    return response.value.map(AttributeRead.value) ?? .absent
+                case .noValue, .attributeUnsupported:
+                    return .absent
+                default:
                     errorCount += 1
                     Log.items.debug("AX host=\(app.bundleID ?? app.name, privacy: .private) attribute=\(attribute, privacy: .public) error=\(response.error.rawValue)")
-                    return nil
+                    return .failed
                 }
-                return response.value
+            }
+            func read(_ element: AXUIElement, _ name: String) -> CFTypeRef? {
+                attribute(element, name).value
+            }
+            /// Nil when the read failed; `.some(nil)` when the attribute is absent or not a string.
+            func string(_ element: AXUIElement, _ name: String) -> String?? {
+                switch attribute(element, name) {
+                case .failed: return nil
+                case .absent: return .some(nil)
+                case .value(let value): return .some(value as? String)
+                }
             }
             let root = AXUIElementCreateApplication(app.pid)
             guard let bar = element(read(root, "AXExtrasMenuBar")),
@@ -127,8 +142,25 @@ enum AccessibilityScanner {
                     Log.items.debug("AX host=\(app.bundleID ?? app.name, privacy: .private) child skipped: empty or non-finite frame=\(String(describing: CGRect(origin: origin, size: size)), privacy: .private)")
                     continue
                 }
-                let identifier = read(child, kAXIdentifierAttribute) as? String
-                let description = read(child, kAXDescriptionAttribute) as? String ?? read(child, kAXTitleAttribute) as? String
+                // System hosts are identified by AXIdentifier, other apps by description or title. A failed read
+                // (unlike an absent attribute) must not publish the item under a different key.
+                let identifier: String?
+                if systemHost {
+                    guard let read = string(child, kAXIdentifierAttribute) else {
+                        Log.items.debug("AX host=\(app.bundleID ?? app.name, privacy: .private) child skipped: identifier read failed")
+                        continue
+                    }
+                    identifier = read
+                } else {
+                    identifier = nil
+                }
+                var label = string(child, kAXDescriptionAttribute)
+                if case .some(.none) = label { label = string(child, kAXTitleAttribute) }
+                if label == nil, !systemHost {
+                    Log.items.debug("AX host=\(app.bundleID ?? app.name, privacy: .private) child skipped: description or title read failed")
+                    continue
+                }
+                let description = label ?? nil
                 let frame = CGRect(origin: origin, size: size)
                 let item = AccessibilityItem(
                     appName: app.name, bundleID: app.bundleID, pid: app.pid,
@@ -158,6 +190,18 @@ enum AccessibilityScanner {
     }
 
     // MARK: - Attribute helpers
+
+    /// An attribute that is absent (`noValue`, unsupported, or empty) is different from a read that failed.
+    private enum AttributeRead {
+        case value(CFTypeRef)
+        case absent
+        case failed
+
+        var value: CFTypeRef? {
+            if case .value(let value) = self { return value }
+            return nil
+        }
+    }
 
     nonisolated private static func element(_ ref: CFTypeRef?) -> AXUIElement? {
         guard let ref, CFGetTypeID(ref) == AXUIElementGetTypeID() else { return nil }
