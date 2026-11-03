@@ -50,7 +50,8 @@ Sources/Barback            App shell: AppDelegate, status items, hotkey, hover m
                            drop-down panel (DropDownPanelWindow/-Controller/-View)
 Tests/BarbackCoreTests     Unit tests for BarbackCore
 Tests/BarbackTests         Native panel controls and settings persistence, using isolated defaults
-Tests/SigningTests        Credential-free signing, notarization and temporary-keychain tests
+Tests/SigningTests        Credential-free signing, notarization, temporary-keychain and
+                           repository hygiene (.gitignore) tests
 Resources/                 Info.plist template, Barback.entitlements, AppIcon.icns
 Scripts/                   build_app.sh, package_release.sh, render_cask.sh, update_tap.sh,
                            import_signing_identity.sh, notarize.sh, verify_signature.sh,
@@ -95,3 +96,5 @@ The first upgrade from an ad-hoc build requires a new Accessibility grant. A sta
 4. Without that secret, publish the cask yourself once the release exists: `Scripts/update_tap.sh --version X.Y.Z --from-release` (add `--dry-run` first to preview).
 
 Published release assets are never replaced: the cask pins the zip's SHA-256, so cut a new version instead.
+
+`.gitignore` keeps signing material (certificates, keys, keychains, provisioning profiles, base64 secret copies, `.env*`), release artifacts and local AI agent instruction files out of git, and `Tests/SigningTests/repository.test.cjs` fails `make signing-test` if those protections are weakened.
