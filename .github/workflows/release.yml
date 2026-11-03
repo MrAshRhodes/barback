@@ -89,6 +89,16 @@ jobs:
           xcodebuild -version
           swift --version
 
+      - name: Require update signing configuration
+        if: steps.version.outputs.exists != 'true'
+        env:
+          BARBACK_SPARKLE_PUBLIC_KEY: ${{ vars.BARBACK_SPARKLE_PUBLIC_KEY }}
+          BARBACK_SPARKLE_PRIVATE_KEY: ${{ secrets.BARBACK_SPARKLE_PRIVATE_KEY }}
+        run: |
+          set +x
+          : "${BARBACK_SPARKLE_PUBLIC_KEY:?Configure the release environment variable BARBACK_SPARKLE_PUBLIC_KEY}"
+          : "${BARBACK_SPARKLE_PRIVATE_KEY:?Configure the release environment secret BARBACK_SPARKLE_PRIVATE_KEY}"
+
       - name: Test
         if: steps.version.outputs.exists != 'true'
         run: |
@@ -122,10 +132,19 @@ jobs:
         env:
           VERSION: ${{ steps.version.outputs.version }}
           BARBACK_SIGN_IDENTITY: ${{ steps.signing.outputs.identity }}
+          BARBACK_SPARKLE_PUBLIC_KEY: ${{ vars.BARBACK_SPARKLE_PUBLIC_KEY }}
           BARBACK_NOTARY_KEY_PATH: ${{ runner.temp }}/barback-notary.p8
           BARBACK_NOTARY_KEY_ID: ${{ secrets.BARBACK_NOTARY_KEY_ID }}
           BARBACK_NOTARY_ISSUER_ID: ${{ secrets.BARBACK_NOTARY_ISSUER_ID }}
         run: Scripts/package_release.sh --version "$VERSION" --formats zip,dmg --require-universal --notarize --build-number "$GITHUB_RUN_NUMBER"
+
+      - name: Generate and verify the signed update feed
+        if: steps.version.outputs.exists != 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          BARBACK_SPARKLE_PUBLIC_KEY: ${{ vars.BARBACK_SPARKLE_PUBLIC_KEY }}
+          BARBACK_SPARKLE_PRIVATE_KEY: ${{ secrets.BARBACK_SPARKLE_PRIVATE_KEY }}
+        run: Scripts/generate_appcast.sh "$VERSION"
 
       - name: Remove notarization credentials
         if: always()
@@ -149,6 +168,8 @@ jobs:
             "dist/Barback-$VERSION.zip.sha256"
             "dist/Barback-$VERSION.dmg"
             "dist/Barback-$VERSION.dmg.sha256"
+            "dist/appcast.xml"
+            "dist/appcast.xml.sha256"
           )
           flags=()
           if [[ "$PRERELEASE" == true ]]; then

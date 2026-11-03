@@ -14,13 +14,25 @@ function fixture(t, scenario = "accepted") {
   const app = path.join(dir, "Barback.app");
   mkdirSync(bin);
   mkdirSync(app);
+  const contents = path.join(app, "Contents");
+  mkdirSync(contents);
+  const plist = readFileSync(path.join(root, "Resources/Info.plist"), "utf8")
+    .replace("</dict>\n</plist>", "<key>SUPublicEDKey</key><string>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=</string></dict>\n</plist>");
+  writeFileSync(path.join(contents, "Info.plist"), plist);
+  const framework = path.join(contents, "Frameworks/Sparkle.framework/Versions/B");
+  mkdirSync(path.join(framework, "Updater.app"), { recursive: true });
+  writeFileSync(path.join(framework, "Autoupdate"), "");
   const log = path.join(dir, "calls");
   writeFileSync(log, "");
   const command = (name, body) => writeFileSync(path.join(bin, name),
     `#!/bin/bash\nset -eu\nprintf '%s\\n' "${name} $*" >> "$CALLS"\n${body}\n`, { mode: 0o755 });
   command("codesign", `
 if [[ "$*" == *--verify* ]]; then
-  [[ "$*" == *'-R=identifier "io.github.mrashrhodes.barback"'* ]] || exit 8
+  if [[ "$*" != *Sparkle.framework* ]]; then
+    [[ "$*" == *'-R=identifier "io.github.mrashrhodes.barback"'* ]] || exit 8
+  elif [[ "$SCENARIO" == bad-nested-signature ]]; then
+    exit 9
+  fi
   [[ "$SCENARIO" != bad-requirement ]] || exit 9
 elif [[ "$*" == *--requirements* ]]; then
   echo 'designated => test requirement'
@@ -103,13 +115,31 @@ for (const scenario of ["rejected", "timeout", "malformed", "missing-status"]) {
   });
 }
 
-for (const scenario of ["bad-requirement", "wrong-team", "no-timestamp", "no-x86-runtime"]) {
+for (const scenario of ["bad-requirement", "wrong-team", "no-timestamp", "no-x86-runtime", "bad-nested-signature"]) {
   test(`${scenario} fails before uploading the app`, (t) => {
     const f = fixture(t, scenario);
     assert.notEqual(f.run().status, 0);
     assert.doesNotMatch(f.calls(), /notarytool submit/);
   });
 }
+
+test("production build requires an update public key before compiling", (t) => {
+  const f = fixture(t);
+  Object.assign(f.env, { BARBACK_SIGN_IDENTITY: "test-identity", BARBACK_SPARKLE_PUBLIC_KEY: "" });
+  const result = f.run("build_app.sh", []);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /Developer ID builds require BARBACK_SPARKLE_PUBLIC_KEY/);
+  assert.equal(f.calls(), "");
+});
+
+test("malformed update key fails before compiling", (t) => {
+  const f = fixture(t);
+  f.env.BARBACK_SPARKLE_PUBLIC_KEY = "not-a-public-key";
+  const result = f.run("build_app.sh", []);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /base64-encoded 32-byte/);
+  assert.equal(f.calls(), "");
+});
 
 for (const scenario of ["staple-failed", "ticket-invalid", "gatekeeper-rejected", "wrong-source"]) {
   test(`${scenario} cannot report success`, (t) => {

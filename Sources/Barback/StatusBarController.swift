@@ -40,13 +40,16 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     private var userActed = false
     private var welcomePopover: NSPopover?
     private let panel: DropDownPanelController
+    private let updates: UpdateController
+    private weak var checkForUpdatesItem: NSMenuItem?
 
     var onOpenSettings: (() -> Void)?
     var onOpenPanelSettings: (() -> Void)?
     var onShowAbout: (() -> Void)?
 
-    init(model: AppModel, items: ItemsModel) {
+    init(model: AppModel, items: ItemsModel, updates: UpdateController) {
         self.model = model
+        self.updates = updates
         panel = DropDownPanelController(model: model, items: items)
         Self.seedPositionIfNeeded(AutosaveName.chevron, relativeTo: nil)
         Self.seedPositionIfNeeded(AutosaveName.hidden, relativeTo: AutosaveName.chevron)
@@ -649,6 +652,11 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         about.target = self
         setSymbol(about, "info.circle")
         menu.addItem(about)
+        let checkForUpdates = updates.makeMenuItem()
+        checkForUpdates.isEnabled = updates.canCheckNow
+        setSymbol(checkForUpdates, "arrow.triangle.2.circlepath")
+        menu.addItem(checkForUpdates)
+        checkForUpdatesItem = checkForUpdates
         let tip = NSMenuItem(title: String(localized: "Getting Started"), action: #selector(gettingStartedClicked), keyEquivalent: "")
         tip.target = self
         setSymbol(tip, "questionmark.circle")
@@ -732,6 +740,8 @@ final class StatusBarController: NSObject, NSMenuDelegate {
 
     func menuWillOpen(_ menu: NSMenu) {
         menuIsOpen = true
+        updates.refresh()
+        checkForUpdatesItem?.isEnabled = updates.canCheckNow
     }
 
     func menuDidClose(_ menu: NSMenu) {

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Barback: keep the menu bar clear · free menu bar icon hider for macOS</title>
-<meta name="description" content="Barback is a free, open-source menu bar item hider for macOS. Tuck icons behind a chevron and bring them back with a click or ⌃⌥⌘B. No polling, no screen recording, no required permissions, no network.">
+<meta name="description" content="Barback is a free, open-source menu bar item hider for macOS. Tuck icons behind a chevron and bring them back with a click or ⌃⌥⌘B. No polling, no screen recording, no required permissions, no telemetry.">
 <link rel="canonical" href="https://mrashrhodes.github.io/barback/">
 <meta name="theme-color" content="#0E0F0C">
 <meta name="color-scheme" content="dark">
@@ -147,7 +147,7 @@
             <li><span class="qty">1</span><span>always-hidden separator <span class="sym">┊</span> <span class="note">optional</span></span></li>
             <li><span class="qty">1</span><span>hotkey <kbd>⌃⌥⌘B</kbd> <span class="note">to taste</span></span></li>
             <li><span class="qty">0</span><span>required permissions</span></li>
-            <li><span class="qty">0</span><span>dependencies</span></li>
+            <li><span class="qty">0</span><span>required accounts</span></li>
           </ul>
         </div>
         <div class="card-b">
@@ -197,8 +197,8 @@
             <div><dt>Event taps</dt><dd>0</dd></div>
             <div><dt>Synthetic mouse drags</dt><dd>0</dd></div>
             <div><dt>Required permissions</dt><dd>0</dd></div>
-            <div><dt>Network requests</dt><dd>0</dd></div>
-            <div><dt>Third-party dependencies</dt><dd>0</dd></div>
+            <div><dt>Automatic update checks</dt><dd>off</dd></div>
+            <div><dt>Update framework</dt><dd>Sparkle</dd></div>
             <div class="r-price"><dt>Price</dt><dd>$0.00</dd></div>
             <div><dt>Tip</dt><dd>a ★ on GitHub</dd></div>
             <div class="r-total"><dt>Total</dt><dd>$0.00</dd></div>
@@ -329,8 +329,8 @@
               <tr><th scope="row">Event taps</th><td>Six call sites</td><td>None</td></tr>
               <tr><th scope="row">Rearranging</th><td>Synthetic ⌘-drags</td><td>You ⌘-drag, macOS remembers</td></tr>
               <tr><th scope="row">App names</th><td>Accessibility crawl via an XPC helper</td><td>Window metadata, optional Accessibility</td></tr>
-              <tr><th scope="row">Network</th><td>Updates, licensing, subscriptions</td><td>None</td></tr>
-              <tr><th scope="row">Size</th><td>≈ 36 MB binary, ~45 frameworks</td><td>A few MB, system frameworks only</td></tr>
+              <tr><th scope="row">Network</th><td>Updates, licensing, subscriptions</td><td>Optional update checks only</td></tr>
+              <tr><th scope="row">Frameworks</th><td>~45 frameworks</td><td>Native Swift + Sparkle updates</td></tr>
             </tbody>
           </table>
         </div>
@@ -426,7 +426,7 @@
         </details>
         <details>
           <summary>Does it phone home?</summary>
-          <div class="faq-a"><p>No. There’s no networking code at all: no telemetry, no analytics, no update checks. Updates come through Homebrew or GitHub Releases.</p></div>
+          <div class="faq-a"><p>No telemetry, analytics or system profiling. In updater-enabled releases, automatic checks start off. You can check manually or choose Daily, Weekly or Monthly (30 days) in Settings. Checks contact GitHub with normal request metadata, including your IP address and app/Sparkle versions; downloads and installations need your confirmation. Homebrew copies stay managed by Homebrew. Older releases need one manual upgrade to gain the updater.</p></div>
         </details>
         <details>
           <summary>What does it cost?</summary>

@@ -35,6 +35,7 @@ enum SettingsMetrics {
 struct GeneralSettingsView: View {
     @ObservedObject var model: AppModel
     @ObservedObject var loginItem: LoginItemController
+    @ObservedObject var updates: UpdateController
 
     private var rehideOptions: [Int] {
         var options = BarbackSettings.autoRehidePresets
@@ -147,6 +148,8 @@ struct GeneralSettingsView: View {
                 Text("Save your settings, groups and shortcut as a readable JSON file, or load them from one. Importing replaces your current settings.")
                     .settingsFooter()
             }
+
+            UpdateSettingsSection(updates: updates)
         }
         .formStyle(.grouped)
         .frame(width: SettingsMetrics.width)
@@ -174,6 +177,85 @@ struct GeneralSettingsView: View {
         formatter.allowedUnits = seconds % 60 == 0 ? [.minute] : [.minute, .second]
         let text = formatter.string(from: TimeInterval(seconds)) ?? BarbackSettings.describeRehide(seconds: seconds)
         return String(localized: "After \(text)")
+    }
+}
+
+// MARK: - Updates
+
+/// Automatic-check schedule and "Check Now". Off by default; Homebrew copies point to `brew upgrade` instead.
+struct UpdateSettingsSection: View {
+    @ObservedObject var updates: UpdateController
+
+    var body: some View {
+        Section {
+            switch updates.availability {
+            case .ready:
+                Picker("Check for updates automatically", selection: Binding(
+                    get: { updates.frequency },
+                    set: { updates.setFrequency($0) }
+                )) {
+                    ForEach(UpdateCheckFrequency.allCases) { frequency in
+                        Text(Self.label(frequency)).tag(frequency)
+                    }
+                }
+                LabeledContent {
+                    Button("Check Now") { updates.checkForUpdates(nil) }
+                        .barbackButton()
+                        .disabled(!updates.canCheckNow)
+                } label: {
+                    Text("Check for updates")
+                    Text(lastCheckText)
+                }
+            case .homebrew:
+                LabeledContent {
+                    Button("Copy Command") {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(UpdateInstallSource.homebrewUpdateCommand, forType: .string)
+                    }
+                    .barbackButton()
+                } label: {
+                    Text("Installed with Homebrew")
+                    Text(verbatim: UpdateInstallSource.homebrewUpdateCommand)
+                        .font(.system(.caption, design: .monospaced))
+                        .textSelection(.enabled)
+                }
+            case .unavailable(let reason):
+                Label {
+                    Text(reason)
+                } icon: {
+                    Image(systemName: "info.circle")
+                }
+            }
+        } header: {
+            Text("Updates")
+        } footer: {
+            Text(footer).settingsFooter()
+        }
+    }
+
+    private var lastCheckText: String {
+        guard let date = updates.lastCheck else { return String(localized: "Not checked yet") }
+        return String(localized: "Last checked \(date.formatted(date: .abbreviated, time: .shortened))")
+    }
+
+    private var footer: String {
+        switch updates.availability {
+        case .ready:
+            String(localized: "Checks are off by default. A schedule may check immediately when overdue; Monthly means every 30 days. Checks contact GitHub with normal request metadata, including your IP address and app version. No telemetry or system profile is sent. Updates are verified, and Barback asks before downloading or installing.")
+        case .homebrew:
+            String(localized: "Homebrew installed this copy, so Homebrew updates it. Barback won’t download updates itself. Run the command above in Terminal.")
+        case .unavailable:
+            String(localized: "Download new versions from the releases page on GitHub.")
+        }
+    }
+
+    static func label(_ frequency: UpdateCheckFrequency) -> String {
+        switch frequency {
+        case .never: String(localized: "Never")
+        case .daily: String(localized: "Daily")
+        case .weekly: String(localized: "Weekly")
+        case .monthly: String(localized: "Monthly")
+        }
     }
 }
 
@@ -421,6 +503,7 @@ private struct ItemRowView: View {
 
 struct AboutSettingsView: View {
     @ObservedObject var model: AppModel
+    @ObservedObject var updates: UpdateController
     @Environment(\.openURL) private var openURL
 
     var body: some View {
@@ -444,6 +527,9 @@ struct AboutSettingsView: View {
             .barbackProminentButton()
             .padding(.top, 6)
             .help(Text(verbatim: BarbackInfo.repositoryURL.absoluteString))
+            Button("Check for Updates…") { updates.checkForUpdates(nil) }
+                .barbackButton()
+                .disabled(!updates.canCheckNow)
             Text(verbatim: BarbackInfo.copyright)
                 .font(.footnote)
                 .foregroundStyle(.secondary)

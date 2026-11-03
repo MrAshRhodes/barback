@@ -7,6 +7,12 @@ See [GitHub Releases](https://github.com/MrAshRhodes/barback/releases) for downl
 
 ## [Unreleased]
 
+### Added
+
+- Sparkle updates for direct downloads: Check for Updates in the menu and About, plus Never (the default), Daily, Weekly or Monthly (30-day) checks in Settings. Enabling a schedule can check immediately when overdue. Downloads and installations always need confirmation; system profiling stays off.
+- Homebrew-managed copies stay on the tap's update path and show the `brew update && brew upgrade --cask barback` command instead of self-updating. Source builds without an update signing key link to Releases.
+- Signed update feeds and archive verification in release packaging, with inside-out signing of Sparkle's installer helpers. Existing versions need one manual upgrade to gain the updater.
+
 ## [0.3.0] - 2026-11-03
 
 ### Added
