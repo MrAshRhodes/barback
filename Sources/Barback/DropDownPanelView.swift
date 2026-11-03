@@ -187,7 +187,7 @@ struct DropDownPanelView: View {
                 PanelGlassContainer(chrome: model.chrome) { moduleGrid }
             }
             if model.unidentifiedItemCount > 0 {
-                Text("Unidentified items are not included. Manage available items in Panel Settings.")
+                Text("Unidentified or ambiguous items are not included. System items need a recognized stable Accessibility identifier. Manage available items in Panel Settings.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -270,7 +270,7 @@ struct DropDownPanelView: View {
         VStack(alignment: .leading, spacing: 10) {
             Label("Allow Accessibility to open items", systemImage: "hand.raised")
                 .font(.headline)
-            Text("Barback cannot open an item's menu without permission. You can still reveal icons in the menu bar.")
+            Text("Accessibility is needed to identify system items such as Wi-Fi and Bluetooth and to open an item's menu. You can still reveal icons in the menu bar without permission.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

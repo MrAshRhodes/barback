@@ -328,9 +328,12 @@ struct ItemsSettingsView: View {
                     Text("Listed right to left. This list updates only when you click Refresh.")
                     Text("Give an item a shortcut, or copy its barback://open link for Shortcuts, scripts and launchers. Both open the item’s menu and need Accessibility access.")
                     if items.systemHosted, !items.accessibilityTrusted {
-                        Text("macOS hosts many menu bar items in Control Center, so their app names aren’t available. Allow Accessibility access to show app names.")
+                        Text("System items such as Wi-Fi and Bluetooth need Accessibility to be identified and used in panels, shortcuts and links. Allow access, then refresh.")
                         Button("Allow Accessibility Access…") { items.requestAccessibility() }
                             .barbackButton()
+                    }
+                    if items.accessibilityTrusted, items.unidentifiedPanelItemCount > 0 {
+                        Text("Unidentified or ambiguous items cannot be used in panels, shortcuts or links. System items need a recognized stable Accessibility identifier; descriptions alone can change with state or language.")
                     }
                 }
                 .settingsFooter()

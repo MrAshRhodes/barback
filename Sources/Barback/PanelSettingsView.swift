@@ -126,7 +126,7 @@ struct PanelSettingsView: View {
             } header: {
                 Text("Menu Bar Access")
             } footer: {
-                Text("On macOS 26, Accessibility is also needed to identify items hosted by Control Center. After granting it, return here and refresh. Items without a stable identity stay out of panels rather than becoming generic, interchangeable icons.")
+                Text("On macOS 26, Accessibility is also needed to identify items hosted by Control Center. After granting it, return here and refresh. System items without a recognized stable Accessibility identifier, and ambiguous items, stay out of panels rather than being guessed from changing descriptions.")
                     .settingsFooter()
             }
         }

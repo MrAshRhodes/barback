@@ -4,7 +4,7 @@ import Foundation
 /// A menu bar item's stored identity, unlike its transient window ID.
 ///
 /// `owner` is the bundle identifier of the app that owns the item (its process name when there is none), `detail`
-/// is the item's own Accessibility title or description when known (an app can have several items; macOS 26
+/// is a canonical system label or the app's own Accessibility title or description (an app can have several items; macOS 26
 /// hosts most of them in Control Center), and `ordinal` tells items with the same owner and detail apart by
 /// their position, left to right. Without Accessibility, system-hosted items share one owner, so their
 /// ordinals follow the menu bar's current order. These positional keys are not safe panel selectors;
@@ -33,7 +33,8 @@ public enum ItemKeyAssigner {
     /// The owner and detail half of an item's key.
     public static func identity(of item: MenuBarItem) -> (owner: String, detail: String?) {
         let owner = item.bundleID.flatMap { $0.isEmpty ? nil : $0 } ?? item.ownerName
-        let raw = item.detail ?? (item.isHostedBySystem ? item.title : nil)
+        let isSystemHost = item.bundleID.map { MenuBarItemParser.systemHostBundleIDs.contains($0) } ?? false
+        let raw = item.detail ?? (item.isHostedBySystem && !isSystemHost ? item.title : nil)
         let detail = raw?.trimmingCharacters(in: .whitespacesAndNewlines)
         return (owner, detail?.isEmpty == false ? detail : nil)
     }
