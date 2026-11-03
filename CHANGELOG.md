@@ -7,6 +7,8 @@ See [GitHub Releases](https://github.com/MrAshRhodes/barback/releases) for downl
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-03
+
 ### Added
 
 - Sparkle updates for direct downloads: Check for Updates in the menu and About, plus Never (the default), Daily, Weekly or Monthly (30-day) checks in Settings. Enabling a schedule can check immediately when overdue. Downloads and installations always need confirmation; system profiling stays off.
@@ -83,7 +85,8 @@ First public release.
 - Universal (Apple silicon + Intel) app for macOS 14 Sonoma or later, distributed as a zip and a Homebrew cask (`brew install --cask mrashrhodes/tap/barback`).
 
 
-[Unreleased]: https://github.com/MrAshRhodes/barback/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/MrAshRhodes/barback/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/MrAshRhodes/barback/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/MrAshRhodes/barback/compare/v0.2.3...v0.3.0
 [0.2.3]: https://github.com/MrAshRhodes/barback/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/MrAshRhodes/barback/compare/v0.2.1...v0.2.2
