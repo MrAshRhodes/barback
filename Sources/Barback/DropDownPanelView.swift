@@ -10,6 +10,10 @@ struct DropDownPanelItem: Identifiable, Equatable {
     let fallbackSymbol: String
     let display: Int?
     let revealAction: SectionAction?
+    /// The app's name when it says more than the title, shown under search results.
+    let subtitle: String?
+    /// What quick search matches: the title, the app's name and the item's own description.
+    let searchTerms: [String]
 
     @MainActor
     init(row: MenuBarItemRow) {
@@ -20,6 +24,9 @@ struct DropDownPanelItem: Identifiable, Equatable {
         fallbackSymbol = ItemIcons.symbol(for: row.item)
         display = row.display
         revealAction = row.visibility == .shown ? nil : row.section == .alwaysHidden ? .showAll : .show
+        let appName = row.item.displayName
+        subtitle = row.barbackRole == nil && appName != title && !row.item.isSystemItem ? appName : nil
+        searchTerms = [title, appName, row.item.detail].compactMap { $0 }
     }
 }
 
@@ -66,12 +73,66 @@ final class DropDownPanelModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var chrome: DropDownPanelChrome = .material
     @Published var maxContentHeight: CGFloat = DropDownPanelView.defaultMaxContentHeight
+    /// What has been typed while the panel is open; empty shows the panels as usual.
+    @Published private(set) var query = ""
+    /// Index into `results` of the highlighted result.
+    @Published private(set) var selection: Int?
     var onOpen: (DropDownPanelItem) -> Void = { _ in }
     var onOpenSettings: () -> Void = {}
     var onEditPanel: (UUID) -> Void = { _ in }
     var onAllowAccessibility: () -> Void = {}
     var onRefresh: () -> Void = {}
     var onReveal: () -> Void = {}
+
+    // MARK: Quick search
+
+    var isSearching: Bool { !QuickSearch.normalize(query).isEmpty }
+
+    /// Every item in the panels once (an item can be in several), best match first.
+    var results: [DropDownPanelItem] {
+        var seen = Set<UInt32>()
+        let items = boxes.flatMap(\.items).filter { seen.insert($0.id).inserted }
+        return QuickSearch.filter(items, query: query) { $0.searchTerms }
+    }
+
+    var selectedResult: DropDownPanelItem? {
+        let results = results
+        guard let selection, results.indices.contains(selection) else { return nil }
+        return results[selection]
+    }
+
+    func type(_ text: String) {
+        setQuery(query + text)
+    }
+
+    func deleteBackward() {
+        guard !query.isEmpty else { return }
+        setQuery(String(query.dropLast()))
+    }
+
+    func clearQuery() {
+        setQuery("")
+    }
+
+    func moveSelection(by offset: Int) {
+        selection = QuickSearchSelection.moved(selection, by: offset, count: results.count)
+    }
+
+    func select(_ item: DropDownPanelItem) {
+        selection = results.firstIndex { $0.id == item.id }
+    }
+
+    /// Keeps the highlight on a result after the items changed (a scan finishing).
+    func clampSelection() {
+        let clamped = isSearching ? QuickSearchSelection.clamped(selection, count: results.count) : nil
+        if clamped != selection { selection = clamped }
+    }
+
+    /// A new query highlights its best match.
+    private func setQuery(_ text: String) {
+        query = text
+        selection = isSearching ? QuickSearchSelection.clamped(nil, count: results.count) : nil
+    }
 }
 
 private enum Metrics {
@@ -83,43 +144,58 @@ private enum Metrics {
 struct DropDownPanelView: View {
     static let width: CGFloat = 340
     static let defaultMaxContentHeight: CGFloat = 440
+    /// Height the search field adds above the scrolling content while a query is typed.
+    static let searchFieldHeight: CGFloat = 46
 
     @ObservedObject var model: DropDownPanelModel
 
     var body: some View {
         VStack(spacing: Metrics.gap) {
             header
-            ScrollView {
-                VStack(spacing: Metrics.gap) {
-                    if let error = model.errorMessage {
-                        failureNotice(error)
-                    }
-                    if !model.canOpenItems {
-                        accessibilityNotice
-                    }
-                    if model.boxes.isEmpty {
-                        emptyState
-                    } else {
-                        PanelGlassContainer(chrome: model.chrome) { moduleGrid }
-                    }
-                    if model.unidentifiedItemCount > 0 {
-                        Text("Unidentified items are not included. Manage available items in Panel Settings.")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .padding(.horizontal, 6)
-                    }
-                }
-                .padding(1)
+            if model.isSearching {
+                SearchFieldView(model: model)
             }
-            .scrollBounceBehavior(.basedOnSize)
-            .frame(maxHeight: model.maxContentHeight)
+            ScrollViewReader { proxy in
+                ScrollView { scrollContent }
+                    .scrollBounceBehavior(.basedOnSize)
+                    .frame(maxHeight: model.maxContentHeight)
+                    .onChange(of: model.selectedResult?.id) { _, id in
+                        guard let id else { return }
+                        proxy.scrollTo(SearchResultsView.rowID(id))
+                    }
+            }
         }
         .padding(Metrics.padding)
         .frame(width: Self.width)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(Text("Barback Panels"))
+    }
+
+    private var scrollContent: some View {
+        VStack(spacing: Metrics.gap) {
+            if let error = model.errorMessage {
+                failureNotice(error)
+            }
+            if !model.canOpenItems {
+                accessibilityNotice
+            }
+            if model.isSearching {
+                SearchResultsView(model: model)
+            } else if model.boxes.isEmpty {
+                emptyState
+            } else {
+                PanelGlassContainer(chrome: model.chrome) { moduleGrid }
+            }
+            if model.unidentifiedItemCount > 0 {
+                Text("Unidentified items are not included. Manage available items in Panel Settings.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 6)
+            }
+        }
+        .padding(1)
     }
 
     private var header: some View {
@@ -221,6 +297,90 @@ struct DropDownPanelView: View {
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .platter(model.chrome, subtle: true)
+    }
+}
+
+struct SearchFieldView: View {
+    @ObservedObject var model: DropDownPanelModel
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
+            Text(model.query.isEmpty ? "Search menu bar items" : model.query)
+                .lineLimit(1)
+                .foregroundStyle(model.query.isEmpty ? .secondary : .primary)
+            Spacer(minLength: 0)
+            if !model.query.isEmpty {
+                Text("\(model.results.count)")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .font(.system(size: 13))
+        .padding(.horizontal, 12)
+        .frame(height: DropDownPanelView.searchFieldHeight)
+        .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text("Search menu bar items"))
+        .accessibilityValue(Text(model.query))
+    }
+}
+
+struct SearchResultsView: View {
+    @ObservedObject var model: DropDownPanelModel
+
+    static func rowID(_ id: UInt32) -> String { "quick-search-result-\(id)" }
+
+    var body: some View {
+        if model.results.isEmpty {
+            Text("No matching items")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, minHeight: 72)
+                .accessibilityLabel(Text("No matching menu bar items"))
+        } else {
+            VStack(spacing: 2) {
+                ForEach(Array(model.results.enumerated()), id: \.element.id) { index, item in
+                    Button {
+                        model.onOpen(item)
+                    } label: {
+                        HStack(spacing: 10) {
+                            PanelItemIcon(item: item, size: 22)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(item.title)
+                                    .font(.system(size: 13))
+                                    .lineLimit(1)
+                                if let subtitle = item.subtitle {
+                                    Text(subtitle)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                }
+                            }
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.horizontal, 10)
+                        .frame(maxWidth: .infinity, minHeight: 42, alignment: .leading)
+                        .background {
+                            if model.selection == index {
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .fill(Color.accentColor.opacity(0.16))
+                            }
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!model.canOpenItems || model.isLoading)
+                    .help(item.title)
+                    .accessibilityLabel(Text(item.title))
+                    .accessibilityHint(Text(model.canOpenItems ? "Opens this item's menu" : "Requires Accessibility permission"))
+                    .id(Self.rowID(item.id))
+                    .onHover { if $0 { model.select(item) } }
+                }
+            }
+        }
     }
 }
 

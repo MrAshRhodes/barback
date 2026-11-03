@@ -1,4 +1,5 @@
 import AppKit
+import BarbackCore
 import SwiftUI
 
 /// Reports when the SwiftUI content wants a different size, so the window can follow.
@@ -69,8 +70,10 @@ final class DropDownPanelWindow: NSPanel {
     var onContentSizeChange: () -> Void = {}
 
     private let host: PanelHostingView
+    private let model: DropDownPanelModel
 
     init(model: DropDownPanelModel, chrome: DropDownPanelChrome, increasedContrast: Bool) {
+        self.model = model
         let host = PanelHostingView(rootView: DropDownPanelView(model: model))
         host.sizingOptions = [.intrinsicContentSize]
         self.host = host
@@ -107,7 +110,33 @@ final class DropDownPanelWindow: NSPanel {
     override var canBecomeMain: Bool { false }
 
     override func cancelOperation(_ sender: Any?) {
-        onCancel()
+        if model.isSearching {
+            model.clearQuery()
+        } else {
+            onCancel()
+        }
+    }
+
+    override func keyDown(with event: NSEvent) {
+        switch event.keyCode {
+        case 53:
+            cancelOperation(nil)
+        case 125:
+            model.moveSelection(by: 1)
+        case 126:
+            model.moveSelection(by: -1)
+        case 36, 76:
+            if let item = model.selectedResult { model.onOpen(item) }
+        case 51:
+            model.deleteBackward()
+        default:
+            guard event.modifierFlags.intersection([.command, .control, .option]).isEmpty,
+                  let text = QuickSearch.typedText(event.characters) else {
+                super.keyDown(with: event)
+                return
+            }
+            model.type(text)
+        }
     }
 
     /// The size the content asks for at its fixed width.

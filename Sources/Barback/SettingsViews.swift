@@ -88,7 +88,10 @@ struct GeneralSettingsView: View {
 
             Section {
                 LabeledContent("Show or hide items") {
-                    HotkeyRecorder(combo: $model.settings.hotkey, isRecording: $model.isRecordingHotkey)
+                    HotkeyRecorder(
+                        combo: ItemShortcutSettings.mainHotkeyBinding(model),
+                        isRecording: ItemShortcutSettings.mainRecordingBinding(model)
+                    )
                 }
             } header: {
                 Text("Keyboard Shortcut")
@@ -127,6 +130,22 @@ struct GeneralSettingsView: View {
                 }
             } header: {
                 Text("How to Use")
+            }
+
+            Section {
+                LabeledContent("Settings file") {
+                    HStack {
+                        Button("Export…") { SettingsTransferController.exportSettings(model: model, from: NSApp.keyWindow) }
+                            .barbackButton()
+                        Button("Import…") { SettingsTransferController.importSettings(model: model, from: NSApp.keyWindow) }
+                            .barbackButton()
+                    }
+                }
+            } header: {
+                Text("Backup")
+            } footer: {
+                Text("Save your settings, groups and shortcut as a readable JSON file, or load them from one. Importing replaces your current settings.")
+                    .settingsFooter()
             }
         }
         .formStyle(.grouped)
@@ -284,8 +303,9 @@ struct ItemsSettingsView: View {
                     Text(items.isRefreshing ? String(localized: "Scanning…") : String(localized: "No menu bar items found."))
                         .foregroundStyle(.secondary)
                 } else {
+                    let shortcutKeys = Dictionary(items.panelCandidates.map { ($0.id, $0.key) }) { first, _ in first }
                     ForEach(items.rows) { row in
-                        ItemRowView(row: row)
+                        ItemRowView(row: row, shortcutKey: shortcutKeys[row.id], model: model)
                     }
                 }
             } header: {
@@ -306,6 +326,7 @@ struct ItemsSettingsView: View {
             } footer: {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Listed right to left. This list updates only when you click Refresh.")
+                    Text("Give an item a shortcut, or copy its barback://open link for Shortcuts, scripts and launchers. Both open the item’s menu and need Accessibility access.")
                     if items.systemHosted, !items.accessibilityTrusted {
                         Text("macOS hosts many menu bar items in Control Center, so their app names aren’t available. Allow Accessibility access to show app names.")
                         Button("Allow Accessibility Access…") { items.requestAccessibility() }
@@ -314,6 +335,8 @@ struct ItemsSettingsView: View {
                 }
                 .settingsFooter()
             }
+
+            ItemShortcutsSection(model: model, presentKeys: Set(items.panelCandidates.map(\.key)))
         }
         .formStyle(.grouped)
         .frame(width: SettingsMetrics.width, height: 460)
@@ -323,10 +346,16 @@ struct ItemsSettingsView: View {
 
 private struct ItemRowView: View {
     let row: MenuBarItemRow
+    /// Set for items that can have a shortcut and a link (identifiable, unambiguous ones).
+    var shortcutKey: ItemKey?
+    @ObservedObject var model: AppModel
 
     var body: some View {
         LabeledContent {
             HStack(spacing: 6) {
+                if let shortcutKey {
+                    ItemShortcutControls(model: model, key: shortcutKey, title: row.panelTitle)
+                }
                 if row.overlapsNotch {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .foregroundStyle(.yellow)
@@ -346,7 +375,8 @@ private struct ItemRowView: View {
                     .monospacedDigit()
             }
         }
-        .accessibilityElement(children: .combine)
+        // Rows with shortcut controls keep them reachable as separate elements.
+        .accessibilityElement(children: shortcutKey == nil ? AccessibilityChildBehavior.combine : .contain)
     }
 
     private var sectionText: String {

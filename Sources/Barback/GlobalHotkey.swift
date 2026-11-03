@@ -2,7 +2,11 @@ import BarbackCore
 import Carbon.HIToolbox
 import Foundation
 
-/// A single system-wide shortcut via Carbon `RegisterEventHotKey` (no Accessibility permission needed).
+/// One system-wide shortcut via Carbon `RegisterEventHotKey` (no Accessibility permission needed).
+///
+/// Create one instance per shortcut (the main shortcut, each item's shortcut, …). Every instance gets its own
+/// hot key ID, and one shared application event handler routes each press to the instance that registered it.
+/// Call `unregister()` before dropping an instance.
 @MainActor
 final class GlobalHotkey {
     enum HotkeyError: LocalizedError {
@@ -13,18 +17,32 @@ final class GlobalHotkey {
     }
 
     private static let signature: OSType = 0x4242_4B42 // 'BBKB'
+    private static var handlerRef: EventHandlerRef?
+    private static var nextID: UInt32 = 1
+    /// Registered instances by hot key ID. Weak, so a dropped instance can't be called.
+    private static var registry: [UInt32: Weak] = [:]
+
+    private struct Weak {
+        weak var hotkey: GlobalHotkey?
+    }
+
+    private let id: UInt32
     private var hotKeyRef: EventHotKeyRef?
-    private var handlerRef: EventHandlerRef?
     fileprivate var action: (() -> Void)?
 
     private(set) var combo: KeyCombo?
 
+    init() {
+        id = Self.nextID
+        Self.nextID &+= 1
+    }
+
     func register(_ combo: KeyCombo, action: @escaping () -> Void) throws {
         unregister()
-        installHandlerIfNeeded()
+        Self.installHandlerIfNeeded()
         var ref: EventHotKeyRef?
-        let id = EventHotKeyID(signature: Self.signature, id: 1)
-        let status = RegisterEventHotKey(combo.keyCode, combo.modifiers.rawValue, id, GetApplicationEventTarget(), 0, &ref)
+        let hotKeyID = EventHotKeyID(signature: Self.signature, id: id)
+        let status = RegisterEventHotKey(combo.keyCode, combo.modifiers.rawValue, hotKeyID, GetApplicationEventTarget(), 0, &ref)
         guard status == noErr, let ref else {
             Log.hotkey.error("RegisterEventHotKey failed for \(combo.displayString, privacy: .public): \(status)")
             throw HotkeyError.registrationFailed(status)
@@ -32,6 +50,7 @@ final class GlobalHotkey {
         hotKeyRef = ref
         self.combo = combo
         self.action = action
+        Self.registry[id] = Weak(hotkey: self)
         Log.hotkey.info("Registered hotkey \(combo.displayString, privacy: .public)")
     }
 
@@ -40,25 +59,28 @@ final class GlobalHotkey {
         hotKeyRef = nil
         combo = nil
         action = nil
+        Self.registry[id] = nil
     }
 
-    private func installHandlerIfNeeded() {
+    private static func installHandlerIfNeeded() {
         guard handlerRef == nil else { return }
         var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
-        let selfPtr = Unmanaged.passUnretained(self).toOpaque()
-        InstallEventHandler(GetApplicationEventTarget(), { _, event, userData in
+        InstallEventHandler(GetApplicationEventTarget(), { _, event, _ in
             var hk = EventHotKeyID()
             let status = GetEventParameter(
                 event, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID),
                 nil, MemoryLayout<EventHotKeyID>.size, nil, &hk
             )
-            guard status == noErr, hk.signature == GlobalHotkey.signature, let userData else {
+            guard status == noErr, hk.signature == GlobalHotkey.signature else {
                 return OSStatus(eventNotHandledErr)
             }
-            let hotkey = Unmanaged<GlobalHotkey>.fromOpaque(userData).takeUnretainedValue()
+            let id = hk.id
             // Carbon delivers application-target events on the main thread.
-            MainActor.assumeIsolated { hotkey.action?() }
-            return noErr
-        }, 1, &spec, selfPtr, &handlerRef)
+            return MainActor.assumeIsolated {
+                guard let action = GlobalHotkey.registry[id]?.hotkey?.action else { return OSStatus(eventNotHandledErr) }
+                action()
+                return noErr
+            }
+        }, 1, &spec, nil, &handlerRef)
     }
 }

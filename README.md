@@ -64,9 +64,9 @@ Hidden items re-hide automatically after 10 seconds (configurable, or never), bu
 
 **Settings**
 
-- **General**: launch at login, auto-rehide delay, show on hover, hide when switching apps, always-hidden section, global hotkey.
+- **General**: launch at login, auto-rehide delay, show on hover, hide when switching apps, always-hidden section, global hotkey, and Export…/Import… of your settings (see below).
 - **Appearance**: a live preview plus styles (Classic, Minimal, Cocktail, Eye, Arrows), the toggle icon and its weight, an optional accent tint while hidden items are showing, separator styles for each section, and extra dividers. These change only Barback's own items. An invisible separator still leaves a narrow gap you can ⌘-drag.
-- **Items**: a read-only list of every menu bar item, the process that owns its window, its section and whether it is currently on screen. It is scanned only when you open the tab or click Refresh (⌘R), off the main thread. On a Mac with a notch, items that would sit behind the notch are flagged so you can hide something else to make room. On macOS 26 Tahoe, Control Center hosts most items' windows, so their source app can't be read from window metadata and they're listed as *Unidentified Item*; if you choose to allow Accessibility access, Barback matches them to app names.
+- **Items**: a read-only list of every menu bar item, the process that owns its window, its section and whether it is currently on screen. It is scanned only when you open the tab or click Refresh (⌘R), off the main thread. On a Mac with a notch, items that would sit behind the notch are flagged so you can hide something else to make room. On macOS 26 Tahoe, Control Center hosts most items' windows, so their source app can't be read from window metadata and they're listed as *Unidentified Item*; if you choose to allow Accessibility access, Barback matches them to app names. Identifiable items also get a shortcut recorder and a **Copy Link** button (see *Item shortcuts and links* below); an **Item Shortcuts** list shows every saved shortcut, including ones for items that aren't in the menu bar right now.
 - **Panel**: what clicking Barback does (show the items in the menu bar, the default, or open your panels), and a complete editor for up to 12 panels: select their items, rename, choose an icon and list/grid layout, and reorder panels or their items.
 - **About**: version, license and links.
 
@@ -79,8 +79,26 @@ With **Click Barback to** set to *Open my panels* (Settings › Panel; the defau
 - **Configure first.** Click **Add Panel** in Settings › Panel, enter a name, select a symbol and layout, then use **Add Items** to choose what it contains. Use the arrows to order panels and their items. Both list and grid layouts show item names. The gear and panel edit buttons take you back to Settings.
 - **Only your selections.** There is no automatic *Other* box. Identifiable items from any section can be selected; always-hidden items are available when that section is enabled. Each item belongs to one panel. Removing a panel or selection does not move or hide its original menu bar icon. Existing saved groups are kept as panels.
 - **Honest identification.** Unidentified or ambiguous items are not offered as interchangeable generic icons. On macOS 26, allow Accessibility to identify items hosted by Control Center, then refresh. Saved selections that are not running or cannot be identified remain saved and are marked unavailable, rather than being reassigned to another icon.
+- **Quick Search.** With the panel open, just type to filter your panel items by name or app name, across all panels. Matching ignores case and accents and finds word starts (`fi` finds *Wi-Fi*). Use ↑/↓ to choose a result, Return to open it, Delete to edit the query, and Esc to clear the search (press Esc again to close). Only items you have added to a panel are searched; nothing is captured from the screen.
 - **Open an item.** Accessibility permission is required to press an item's menu. Until it is allowed, item buttons are disabled and the panel provides an explicit **Show in Menu Bar** fallback. With permission, Barback reveals the selected item's section only when needed and opens its menu. Failures are reported instead of silently doing nothing; uncertain presses are not automatically repeated.
 - **Look and behavior.** The panel is a borderless window whose right edge lines up with the Barback icon, a few points below it, kept inside the screen. On macOS 26 Tahoe it is made of Liquid Glass; on macOS 14 and 15 it uses a system material instead. It closes when you click elsewhere, press Esc, click the icon again, switch Space or app, or the screen layout changes. Reduce Transparency gives it a solid background, Increase Contrast adds an outline and Reduce Motion drops the slide. The items are reachable with the keyboard and VoiceOver.
+
+### Back up or move your settings
+
+**Settings › General › Backup** has **Export…** and **Import…**. Export saves a pretty-printed, sorted JSON file you can read, diff or keep in a dotfiles repo; Import loads one and the change takes effect immediately. Nothing is uploaded: the file is only written where you choose.
+
+```json
+{
+  "app" : "Barback",
+  "appVersion" : "0.3.0",
+  "formatVersion" : 1,
+  "settings" : { "autoRehideSeconds" : 10, "showOnHover" : false, "groups" : [ … ], … }
+}
+```
+
+- The file holds everything Barback keeps in its preferences: hiding options, the hotkey (`null` when turned off), per-item shortcuts, appearance, click action, panel layout and your panels with their items. It leaves out per-Mac state: menu bar icon positions, the first-launch tip and Launch at Login (a system setting).
+- Settings missing from a file keep their current values (objects like `appearance` are merged key by key; `groups` is replaced as a whole), and keys Barback doesn't know are ignored.
+- Out-of-range values are fixed the same way as saved settings (for example the rehide delay is capped at an hour and invalid group names or symbols are repaired). Wrong types, unknown choices, malformed JSON or a file from a newer, unsupported `formatVersion` are rejected with an explanation, and your settings are left exactly as they were.
 
 ### Automation
 
@@ -95,7 +113,21 @@ open -g barback://toggle-all  # like Option-clicking the chevron
 open barback://settings       # open Settings
 ```
 
-URLs can only show, hide or open Settings; they can't change settings. With VoiceOver on, the hotkey and URL commands announce the result.
+URLs can only show, hide, open Settings or open an item's menu; they can't change settings. With VoiceOver on, the hotkey and URL commands announce the result.
+
+#### Item shortcuts and links
+
+`barback://open` opens one menu bar item's own menu, as if you had clicked it, revealing it first if it's hidden:
+
+```sh
+open -g "barback://open?item=com.apple.controlcenter/Wi-Fi"   # by stable item key
+open -g "barback://open?name=Wi-Fi"                           # by app or item name
+```
+
+- **Copy Link** in Settings › Items copies an item's `?item=` link. The key is the owning app's bundle identifier, plus `/` and the item's own name when the app has several items. Percent-encode values (`%20` for a space; `+` is a literal plus).
+- `?name=` matches the item's title, its app's name, its own name or "App — item", ignoring case, accents and width. If no item or more than one item matches, Barback opens nothing and logs why (Console, subsystem `io.github.mrashrhodes.barback`, category `items`) rather than guessing; use the `?item=` link instead.
+- In Settings › Items you can also record a global shortcut for an item. A shortcut already used by the main hotkey or another item is refused with a message. Pressing a shortcut whose item isn't in the menu bar does nothing (and is logged).
+- Opening an item uses Accessibility (the same press the drop-down panel uses, no synthetic clicks), so it needs Accessibility access.
 
 ## How it works
 
@@ -125,7 +157,8 @@ Barback was inspired by studying how Bartender behaves. It is deliberately much 
 | Custom icon, separator styles and dividers | ✅ (Barback's own items) | ✅ |
 | Automation | ✅ `barback://` URL scheme | ✅ AppleScript, URL scheme, Shortcuts |
 | Item groups | ✅ named groups in an optional drop-down panel | ✅ |
-| Triggers, presets/profiles, quick search, menu bar styling | ❌ | ✅ |
+| Quick search | ✅ type to filter your panel items | ✅ |
+| Triggers, presets/profiles, menu bar styling | ❌ | ✅ |
 | Screen Recording permission | Not needed | Requested for its item images and layout features |
 | Accessibility permission | Optional (app names in the Items list, opening items from the drop-down panel) | Requested to move and click items |
 | How hiding works | Expands its own separator status item | The same separator technique, plus automatic rearranging of other apps' items |
@@ -141,7 +174,7 @@ Before writing Barback we studied Bartender 6 (6.6.2 on macOS 26) from the outsi
 - **Hiding itself is cheap.** Bartender hides items the same way Hidden Bar, Ice and Barback do: by widening one of its own separator status items. That needs no permission and no background work, so Barback copies it.
 - **The heavy parts are the extras.** Automatic rearranging works by posting synthetic ⌘-drag mouse events while briefly intercepting the user's clicks; the Bartender Bar, search and item identification on Tahoe rely on capturing images of menu bar items (Screen Recording); app names come from Accessibility queries to every menu-bar app; and optional menu bar styling redraws on a timer. Bartender's own support pages and release notes acknowledge mouse movement, CPU and WindowServer load from these paths, and many releases tune them.
 - **What Barback does differently.** It's event-driven: the only timers are one-shot (auto-rehide, hover dwell and the 0.4 s hover exit delay, the same delay Bartender uses), with no polling loops, screen capture, event taps, synthetic events, private APIs, helper processes or network access. You arrange items yourself with ⌘-drag, which macOS remembers.
-- **What Barback leaves out** on purpose: automatic arranging, the secondary bar, search, triggers, presets, spacing changes, menu bar styling (Barback only restyles its own icons) and widgets. These all need the permissions and machinery above.
+- **What Barback leaves out** on purpose: automatic arranging, the secondary bar, image-based search (Barback's Quick Search only matches the names of items you put in a panel), triggers, presets, spacing changes, menu bar styling (Barback only restyles its own icons) and widgets. These all need the permissions and machinery above.
 - **macOS 26 caveat.** On Tahoe, Control Center owns the windows of most menu bar items, so any tool reading window metadata sees "Control Center" rather than the real app. Bartender works around this with image hashing and an Accessibility helper; Barback labels such items honestly and only uses Accessibility if you opt in.
 
 ## Build from source

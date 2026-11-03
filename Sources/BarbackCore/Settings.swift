@@ -20,6 +20,8 @@ public struct BarbackSettings: Equatable, Codable, Sendable {
     public var dropDownLayout: DropDownLayout
     /// The drop-down panel's group boxes, in display order. Empty until the user makes some.
     public var groups: [ItemGroup]
+    /// Global shortcuts that open one item each. Empty unless the user sets some.
+    public var itemHotkeys: [ItemHotkey]
 
     public init(
         autoRehideSeconds: Int = 10,
@@ -30,7 +32,8 @@ public struct BarbackSettings: Equatable, Codable, Sendable {
         appearance: AppearanceSettings = .default,
         clickAction: ClickAction = .default,
         dropDownLayout: DropDownLayout = .default,
-        groups: [ItemGroup] = []
+        groups: [ItemGroup] = [],
+        itemHotkeys: [ItemHotkey] = []
     ) {
         self.autoRehideSeconds = autoRehideSeconds
         self.hotkey = hotkey
@@ -41,6 +44,37 @@ public struct BarbackSettings: Equatable, Codable, Sendable {
         self.clickAction = clickAction
         self.dropDownLayout = dropDownLayout
         self.groups = groups
+        self.itemHotkeys = itemHotkeys
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case autoRehideSeconds, hotkey, showOnHover, alwaysHiddenEnabled, rehideOnAppSwitch, appearance
+        case clickAction, dropDownLayout, groups, itemHotkeys
+    }
+
+    /// Missing keys (for example `itemHotkeys` in data from an older version) keep their defaults.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let d = BarbackSettings.default
+        // `contains` + `decode` rather than `decodeIfPresent`, which can drop the key from error coding paths.
+        func value<T: Decodable>(_ key: CodingKeys, _ fallback: T) throws -> T {
+            c.contains(key) ? try c.decode(T.self, forKey: key) : fallback
+        }
+        autoRehideSeconds = try value(.autoRehideSeconds, d.autoRehideSeconds)
+        // As with synthesized Codable, a missing or null shortcut means none (encoding leaves nil out).
+        if c.contains(.hotkey), try !c.decodeNil(forKey: .hotkey) {
+            hotkey = try c.decode(KeyCombo.self, forKey: .hotkey)
+        } else {
+            hotkey = nil
+        }
+        showOnHover = try value(.showOnHover, d.showOnHover)
+        alwaysHiddenEnabled = try value(.alwaysHiddenEnabled, d.alwaysHiddenEnabled)
+        rehideOnAppSwitch = try value(.rehideOnAppSwitch, d.rehideOnAppSwitch)
+        appearance = try value(.appearance, d.appearance)
+        clickAction = try value(.clickAction, d.clickAction)
+        dropDownLayout = try value(.dropDownLayout, d.dropDownLayout)
+        groups = try value(.groups, d.groups)
+        itemHotkeys = try value(.itemHotkeys, d.itemHotkeys)
     }
 
     public static let `default` = BarbackSettings()
@@ -56,6 +90,7 @@ public struct BarbackSettings: Equatable, Codable, Sendable {
         if let hk = hotkey, !hk.isValidGlobalHotkey { s.hotkey = .defaultToggle }
         s.appearance = appearance.sanitized()
         s.groups = ItemGroups.sanitized(groups)
+        s.itemHotkeys = HotkeyConflicts.sanitized(itemHotkeys, mainHotkey: s.hotkey)
         return s
     }
 
@@ -88,6 +123,8 @@ public enum SettingsKey: String, CaseIterable, Sendable {
     case dropDownLayout
     /// The groups as one JSON document.
     case groups
+    /// Per-item shortcuts as one JSON document.
+    case itemHotkeys
 }
 
 /// Loads and saves `BarbackSettings` in a `UserDefaults` domain.
@@ -127,6 +164,7 @@ public struct SettingsStore {
         if let v = value(.clickAction, ClickAction.self) { s.clickAction = v }
         if let v = value(.dropDownLayout, DropDownLayout.self) { s.dropDownLayout = v }
         s.groups = loadGroups()
+        s.itemHotkeys = loadItemHotkeys()
         return s.sanitized()
     }
 
@@ -136,6 +174,13 @@ public struct SettingsStore {
         // A JSON string (for example from `defaults write`) is accepted as well as the Data we write.
         guard let data = defaults.data(forKey: key) ?? defaults.string(forKey: key)?.data(using: .utf8) else { return [] }
         return (try? JSONDecoder().decode([ItemGroup].self, from: data)) ?? []
+    }
+
+    /// Missing or unreadable data means no item shortcuts, never a crash.
+    private func loadItemHotkeys() -> [ItemHotkey] {
+        let key = SettingsKey.itemHotkeys.rawValue
+        guard let data = defaults.data(forKey: key) ?? defaults.string(forKey: key)?.data(using: .utf8) else { return [] }
+        return (try? JSONDecoder().decode([ItemHotkey].self, from: data)) ?? []
     }
 
     public func save(_ settings: BarbackSettings) {
@@ -163,6 +208,11 @@ public struct SettingsStore {
             defaults.removeObject(forKey: SettingsKey.groups.rawValue)
         } else if let data = try? encoder.encode(s.groups) {
             defaults.set(data, forKey: SettingsKey.groups.rawValue)
+        }
+        if s.itemHotkeys.isEmpty {
+            defaults.removeObject(forKey: SettingsKey.itemHotkeys.rawValue)
+        } else if let data = try? encoder.encode(s.itemHotkeys) {
+            defaults.set(data, forKey: SettingsKey.itemHotkeys.rawValue)
         }
     }
 

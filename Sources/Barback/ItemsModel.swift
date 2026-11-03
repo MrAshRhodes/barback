@@ -48,6 +48,8 @@ final class ItemsModel: ObservableObject {
 
     private let scansEnabled: Bool
     private var refreshPending = false
+    /// Called once the next scan has finished (see `refresh(then:)`).
+    private var refreshCompletions: [() -> Void] = []
     weak var statusBar: StatusBarController?
 
     init() {
@@ -118,6 +120,14 @@ final class ItemsModel: ObservableObject {
         }
     }
 
+    /// Scans, then calls `completion` once `rows` reflect the menu bar as it is now.
+    func refresh(then completion: @escaping () -> Void) {
+        guard scansEnabled else { return completion() }
+        refreshCompletions.append(completion)
+        // A scan already running may have started before the caller's change; scan again after it.
+        if isRefreshing { refreshPending = true } else { refresh() }
+    }
+
     func refresh() {
         guard scansEnabled else { return }
         guard !isRefreshing else {
@@ -152,6 +162,10 @@ final class ItemsModel: ObservableObject {
                 if self.refreshPending {
                     self.refreshPending = false
                     self.refresh()
+                } else {
+                    let completions = self.refreshCompletions
+                    self.refreshCompletions = []
+                    completions.forEach { $0() }
                 }
             }
         }

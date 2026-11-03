@@ -146,6 +146,12 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         }
     }
 
+    /// An item shortcut or `barback://open` link is opening an item outside the panel: keep revealed items in
+    /// place until it has been pressed, as for an item opened from the panel.
+    func externalItemOpeningDidChange(_ pending: Bool) {
+        itemOpeningDidChange(pending)
+    }
+
     /// Opens the panel from the menu, whatever the click action.
     func showDropDownPanel() {
         userActed = true

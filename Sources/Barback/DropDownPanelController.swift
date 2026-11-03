@@ -81,6 +81,7 @@ final class DropDownPanelController: NSObject {
         opener.cancel()
         isOpeningItem = false
         guard window == nil, let button = anchor(), let buttonWindow = button.window, buttonWindow.screen != nil else { return }
+        panelModel.clearQuery()
         // Refresh only now; the panel never scans in the background.
         items.refresh()
         startObserving()
@@ -260,6 +261,7 @@ final class DropDownPanelController: NSObject {
         panelModel.boxes = DropDownPanelBox.make(
             items: candidates, groups: settings.groups, defaultLayout: settings.dropDownLayout
         )
+        panelModel.clampSelection()
         panelModel.isLoading = items.isRefreshing
         panelModel.canOpenItems = items.accessibilityTrusted
         panelModel.unidentifiedItemCount = items.unidentifiedPanelItemCount
