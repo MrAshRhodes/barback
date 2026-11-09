@@ -11,12 +11,14 @@ final class ItemLauncher {
     /// Reveals hidden items in the menu bar (`.show`, or `.showAll` for the always-hidden section).
     var reveal: (SectionAction) -> Void = { _ in }
     var onOpeningChange: (Bool) -> Void = { _ in }
+    var onConfirmedOpen: (ItemKey) -> Void = { _ in }
     private var isOpening = false {
         didSet { if oldValue != isOpening { onOpeningChange(isOpening) } }
     }
 
     init(items: ItemsModel) {
         self.items = items
+        opener.onConfirmedOpen = { [weak self] in self?.onConfirmedOpen($0) }
     }
 
     /// The panel candidates, with every name a link can use for them.

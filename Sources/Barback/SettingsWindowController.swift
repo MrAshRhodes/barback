@@ -6,7 +6,7 @@ import SwiftUI
 @MainActor
 final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     enum Tab: Int {
-        case general, appearance, items, panel, about
+        case general, appearance, items, panel, profiles, about
     }
 
     private let tabs = NSTabViewController()
@@ -36,6 +36,10 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         tabs.addTabViewItem(Self.tab(
             String(localized: "Panel"), symbol: "chevron.down.square",
             PanelSettingsView(model: model, items: items)
+        ))
+        tabs.addTabViewItem(Self.tab(
+            String(localized: "Profiles"), symbol: "rectangle.stack",
+            ProfileSettingsView(model: model, items: items)
         ))
         tabs.addTabViewItem(Self.tab(
             String(localized: "About"), symbol: "info.circle",

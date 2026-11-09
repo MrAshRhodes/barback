@@ -24,6 +24,14 @@ struct SettingsTransferTests {
         s.itemHotkeys = [
             ItemHotkey(key: ItemKey(owner: "com.example.app", detail: "Ünïcode"), combo: KeyCombo(keyCode: 1, modifiers: [.command, .option]), title: "Ünïcode ✨"),
         ]
+        s.notchOverflowEnabled = true
+        let profile = VisibilityProfile(
+            name: "Présentation", visibility: .shownAll, excludedPanelItems: [ItemKey(owner: "com.example.app", detail: "Ünïcode")],
+            automatic: true, appBundleID: "com.apple.Keynote", displayCondition: .externalPresent, displayCount: 2
+        )
+        s.profiles = [profile]
+        s.activeProfileID = profile.id
+        s.baseVisibility = .shown
         return s
     }()
 
@@ -47,6 +55,16 @@ struct SettingsTransferTests {
         let data = try SettingsTransfer.encode(s, appVersion: "1")
         #expect(String(decoding: data, as: UTF8.self).contains("\"hotkey\" : null"))
         #expect(try SettingsTransfer.decode(data, current: .default).hotkey == nil)
+    }
+
+    @Test func baseProfileSelectionIsExportedAsNullAndSurvivesImport() throws {
+        var s = customised
+        s.activeProfileID = nil
+        let data = try SettingsTransfer.encode(s, appVersion: "1")
+        #expect(String(decoding: data, as: UTF8.self).contains("\"activeProfileID\" : null"))
+        let imported = try SettingsTransfer.decode(data, current: customised)
+        #expect(imported.activeProfileID == nil)
+        #expect(imported.profiles == customised.profiles)
     }
 
     @Test func unknownKeysAreIgnored() throws {

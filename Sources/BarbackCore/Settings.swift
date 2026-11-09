@@ -22,6 +22,10 @@ public struct BarbackSettings: Equatable, Codable, Sendable {
     public var groups: [ItemGroup]
     /// Global shortcuts that open one item each. Empty unless the user sets some.
     public var itemHotkeys: [ItemHotkey]
+    public var notchOverflowEnabled: Bool
+    public var profiles: [VisibilityProfile]
+    public var activeProfileID: UUID?
+    public var baseVisibility: ProfileVisibility
 
     public init(
         autoRehideSeconds: Int = 10,
@@ -33,7 +37,11 @@ public struct BarbackSettings: Equatable, Codable, Sendable {
         clickAction: ClickAction = .default,
         dropDownLayout: DropDownLayout = .default,
         groups: [ItemGroup] = [],
-        itemHotkeys: [ItemHotkey] = []
+        itemHotkeys: [ItemHotkey] = [],
+        notchOverflowEnabled: Bool = false,
+        profiles: [VisibilityProfile] = [],
+        activeProfileID: UUID? = nil,
+        baseVisibility: ProfileVisibility = .hidden
     ) {
         self.autoRehideSeconds = autoRehideSeconds
         self.hotkey = hotkey
@@ -45,11 +53,16 @@ public struct BarbackSettings: Equatable, Codable, Sendable {
         self.dropDownLayout = dropDownLayout
         self.groups = groups
         self.itemHotkeys = itemHotkeys
+        self.notchOverflowEnabled = notchOverflowEnabled
+        self.profiles = profiles
+        self.activeProfileID = activeProfileID
+        self.baseVisibility = baseVisibility
     }
 
     private enum CodingKeys: String, CodingKey {
         case autoRehideSeconds, hotkey, showOnHover, alwaysHiddenEnabled, rehideOnAppSwitch, appearance
         case clickAction, dropDownLayout, groups, itemHotkeys
+        case notchOverflowEnabled, profiles, activeProfileID, baseVisibility
     }
 
     /// Missing keys (for example `itemHotkeys` in data from an older version) keep their defaults.
@@ -75,6 +88,10 @@ public struct BarbackSettings: Equatable, Codable, Sendable {
         dropDownLayout = try value(.dropDownLayout, d.dropDownLayout)
         groups = try value(.groups, d.groups)
         itemHotkeys = try value(.itemHotkeys, d.itemHotkeys)
+        notchOverflowEnabled = try value(.notchOverflowEnabled, d.notchOverflowEnabled)
+        profiles = try value(.profiles, d.profiles)
+        activeProfileID = try c.decodeIfPresent(UUID.self, forKey: .activeProfileID)
+        baseVisibility = try value(.baseVisibility, d.baseVisibility)
     }
 
     public static let `default` = BarbackSettings()
@@ -91,6 +108,8 @@ public struct BarbackSettings: Equatable, Codable, Sendable {
         s.appearance = appearance.sanitized()
         s.groups = ItemGroups.sanitized(groups)
         s.itemHotkeys = HotkeyConflicts.sanitized(itemHotkeys, mainHotkey: s.hotkey)
+        s.profiles = VisibilityProfiles.sanitized(profiles)
+        if !s.profiles.contains(where: { $0.id == s.activeProfileID }) { s.activeProfileID = nil }
         return s
     }
 
@@ -125,6 +144,7 @@ public enum SettingsKey: String, CaseIterable, Sendable {
     case groups
     /// Per-item shortcuts as one JSON document.
     case itemHotkeys
+    case notchOverflowEnabled, profiles, activeProfileID, baseVisibility
 }
 
 /// Loads and saves `BarbackSettings` in a `UserDefaults` domain.
@@ -165,6 +185,10 @@ public struct SettingsStore {
         if let v = value(.dropDownLayout, DropDownLayout.self) { s.dropDownLayout = v }
         s.groups = loadGroups()
         s.itemHotkeys = loadItemHotkeys()
+        if let v = bool(.notchOverflowEnabled) { s.notchOverflowEnabled = v }
+        s.profiles = loadProfiles()
+        s.activeProfileID = defaults.string(forKey: SettingsKey.activeProfileID.rawValue).flatMap(UUID.init(uuidString:))
+        if let v = value(.baseVisibility, ProfileVisibility.self) { s.baseVisibility = v }
         return s.sanitized()
     }
 
@@ -174,6 +198,13 @@ public struct SettingsStore {
         // A JSON string (for example from `defaults write`) is accepted as well as the Data we write.
         guard let data = defaults.data(forKey: key) ?? defaults.string(forKey: key)?.data(using: .utf8) else { return [] }
         return (try? JSONDecoder().decode([ItemGroup].self, from: data)) ?? []
+    }
+
+    /// Missing or unreadable data means no profiles, never a crash.
+    private func loadProfiles() -> [VisibilityProfile] {
+        let key = SettingsKey.profiles.rawValue
+        guard let data = defaults.data(forKey: key) ?? defaults.string(forKey: key)?.data(using: .utf8) else { return [] }
+        return (try? JSONDecoder().decode([VisibilityProfile].self, from: data)) ?? []
     }
 
     /// Missing or unreadable data means no item shortcuts, never a crash.
@@ -202,8 +233,16 @@ public struct SettingsStore {
         defaults.set(a.extraDividerStyle.rawValue, forKey: SettingsKey.extraDividerStyle.rawValue)
         defaults.set(s.clickAction.rawValue, forKey: SettingsKey.clickAction.rawValue)
         defaults.set(s.dropDownLayout.rawValue, forKey: SettingsKey.dropDownLayout.rawValue)
+        defaults.set(s.notchOverflowEnabled, forKey: SettingsKey.notchOverflowEnabled.rawValue)
+        defaults.set(s.activeProfileID?.uuidString, forKey: SettingsKey.activeProfileID.rawValue)
+        defaults.set(s.baseVisibility.rawValue, forKey: SettingsKey.baseVisibility.rawValue)
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
+        if s.profiles.isEmpty {
+            defaults.removeObject(forKey: SettingsKey.profiles.rawValue)
+        } else if let data = try? encoder.encode(s.profiles) {
+            defaults.set(data, forKey: SettingsKey.profiles.rawValue)
+        }
         if s.groups.isEmpty {
             defaults.removeObject(forKey: SettingsKey.groups.rawValue)
         } else if let data = try? encoder.encode(s.groups) {

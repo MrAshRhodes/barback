@@ -6,6 +6,8 @@ import BarbackCore
 /// again by its key and presses it through Accessibility.
 @MainActor
 final class ItemOpener {
+    var onConfirmedOpen: (ItemKey) -> Void = { _ in }
+
     /// Time for the menu bar to lay out after a reveal, and for the one retry if it hadn't yet.
     static let firstDelay: TimeInterval = 0.3
     static let retryDelay: TimeInterval = 0.4
@@ -36,6 +38,7 @@ final class ItemOpener {
 
     /// A newer call or cancellation abandons scans that have not committed their press yet.
     func open(key: ItemKey, display: Int?, completion: @escaping (Result<Void, ItemOpenError>) -> Void = { _ in }) {
+        var confirmation = UsageReviewConfirmation(key: key)
         let displays = ItemsModel.currentDisplays()
         let tops = displays.map(\.frame.minY)
         let apps = RunningAppInfo.current()
@@ -49,10 +52,13 @@ final class ItemOpener {
             }),
                   scan.elementIndex(itemAt: item.frame) != nil else { return nil }
             return Target(frame: item.frame, scan: scan)
-        }) { result in
+        }) { [weak self] result in
             switch result {
             case .success: Log.items.info("Opened a menu bar item from the panel")
             case .failure(let error): Log.items.notice("Could not confirm item opening: \(error.localizedDescription, privacy: .public)")
+            }
+            if let confirmedKey = confirmation.confirmedKey(for: result) {
+                self?.onConfirmedOpen(confirmedKey)
             }
             completion(result)
         }

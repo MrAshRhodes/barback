@@ -38,10 +38,27 @@ final class AppModel: ObservableObject {
     var onRecordingChange: ((Bool) -> Void)?
 
     let store: SettingsStore
+    let usageReview: UsageReviewModel
+    let menuBarDoctor = MenuBarDoctorModel()
+    var onProfileSelection: ((UUID?) -> Void)?
+
+    var activeProfile: VisibilityProfile? {
+        settings.profiles.first { $0.id == settings.activeProfileID }
+    }
+
+    var effectiveGroups: [ItemGroup] {
+        VisibilityProfiles.groups(settings.groups, applying: activeProfile)
+    }
 
     init(store: SettingsStore = SettingsStore()) {
         self.store = store
+        self.usageReview = UsageReviewModel(defaults: store.defaults)
         self.settings = store.load()
+    }
+
+    func selectProfile(_ id: UUID?) {
+        if let onProfileSelection { onProfileSelection(id) }
+        else { settings.activeProfileID = id }
     }
 
     var version: String { BarbackInfo.version(from: Bundle.main.infoDictionary) }

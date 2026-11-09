@@ -38,6 +38,7 @@ final class DropDownPanelController: NSObject {
     var onOpenSettings: () -> Void = {}
     var onVisibilityChange: (Bool) -> Void = { _ in }
     var onOpeningChange: (Bool) -> Void = { _ in }
+    var onConfirmedOpen: (ItemKey) -> Void = { _ in }
 
     var isShown: Bool { window != nil }
 
@@ -45,6 +46,7 @@ final class DropDownPanelController: NSObject {
         self.appModel = model
         self.items = items
         super.init()
+        opener.onConfirmedOpen = { [weak self] in self?.onConfirmedOpen($0) }
         panelModel.onOpen = { [weak self] in self?.open($0) }
         panelModel.onOpenSettings = { [weak self] in
             self?.close()
@@ -259,7 +261,7 @@ final class DropDownPanelController: NSObject {
             .filter { $0.section != .alwaysHidden || settings.alwaysHiddenEnabled }
             .map(DropDownPanelItem.init)
         panelModel.boxes = DropDownPanelBox.make(
-            items: candidates, groups: settings.groups, defaultLayout: settings.dropDownLayout
+            items: candidates, groups: appModel.effectiveGroups, defaultLayout: settings.dropDownLayout
         )
         panelModel.clampSelection()
         panelModel.isLoading = items.isRefreshing
