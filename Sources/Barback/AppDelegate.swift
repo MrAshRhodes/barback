@@ -14,6 +14,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var updates = UpdateController.makeDefault()
     private var statusBar: StatusBarController?
     private var settingsWindow: SettingsWindowController?
+    private var profiles: ProfileCoordinator?
     /// URL requests that arrived before the status items existed.
     private var pendingURLRequests: [BarbackURLRequest] = []
 
@@ -27,8 +28,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusBar.onShowAbout = { [weak self] in self?.showAboutPanel() }
         self.statusBar = statusBar
         itemsModel.statusBar = statusBar
+        itemsModel.onSuccessfulRefresh = { [weak self] in
+            guard let self else { return }
+            self.model.usageReview.refreshMeasurements(from: self.itemsModel)
+        }
         launcher.reveal = { [weak statusBar] action in statusBar?.perform(action, userInitiated: true) }
         launcher.onOpeningChange = { [weak statusBar] in statusBar?.externalItemOpeningDidChange($0) }
+        launcher.onConfirmedOpen = { [weak self] key in self?.model.usageReview.recordConfirmedOpen(key: key) }
+        let profiles = ProfileCoordinator(
+            model: model,
+            applyVisibility: { [weak statusBar] visibility in
+                guard let statusBar else { return }
+                switch visibility {
+                case .hidden: statusBar.perform(.hide, userInitiated: false)
+                case .shown:
+                    if statusBar.currentSectionState == .shownAll { statusBar.perform(.hide, userInitiated: false) }
+                    statusBar.perform(.show, userInitiated: false)
+                case .shownAll: statusBar.perform(.showAll, userInitiated: false)
+                }
+            }
+        )
+        self.profiles = profiles
+        model.onProfileSelection = { [weak profiles] in profiles?.select($0) }
 
         hover.onEnterZone = { [weak self] in self?.statusBar?.revealFromHover() }
         hover.onExitMenuBar = { [weak self] in self?.statusBar?.hoverDidExit() }
@@ -47,6 +68,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         applyHotkey()
         applyItemHotkeys()
         applyHover()
+        profiles.start()
         Log.app.info("Barback \(self.model.version, privacy: .public) started")
         if CommandLine.arguments.contains("--settings") { showSettings() }
         let pending = pendingURLRequests
@@ -95,12 +117,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         unregisterItemHotkeys()
         launcher.cancel()
         hover.stop()
+        profiles?.stop()
+        model.usageReview.endSession()
     }
 
     // MARK: - Settings plumbing
 
     private func settingsChanged(from old: BarbackSettings, to new: BarbackSettings) {
         statusBar?.settingsDidChange(from: old, to: new)
+        profiles?.settingsDidChange(from: old, to: new)
         if old.hotkey != new.hotkey { applyHotkey() }
         if old.itemHotkeys != new.itemHotkeys { applyItemHotkeys() }
         if old.showOnHover != new.showOnHover { applyHover() }

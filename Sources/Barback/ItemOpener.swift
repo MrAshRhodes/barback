@@ -6,6 +6,8 @@ import BarbackCore
 /// again by its key and presses it through Accessibility.
 @MainActor
 final class ItemOpener {
+    var onConfirmedOpen: (ItemKey) -> Void = { _ in }
+
     /// Time for the menu bar to lay out after a reveal, and for the one retry if it hadn't yet.
     static let firstDelay: TimeInterval = 0.3
     static let retryDelay: TimeInterval = 0.4
@@ -34,12 +36,13 @@ final class ItemOpener {
         }
     )
 
-    /// A newer call or cancellation abandons scans that have not committed their press yet.
+    /// A newer call or cancellation abandons scans that have not committed their press yet. A press that already
+    /// reached Accessibility is still counted once, even when a newer call has superseded it.
     func open(key: ItemKey, display: Int?, completion: @escaping (Result<Void, ItemOpenError>) -> Void = { _ in }) {
         let displays = ItemsModel.currentDisplays()
         let tops = displays.map(\.frame.minY)
         let apps = RunningAppInfo.current()
-        worker.open(scan: {
+        worker.open(key: key, scan: {
             let scan = AccessibilityScanner.scan(tops: tops, trusted: true, apps: apps)
             let keys = ItemKeyAssigner.panelKeys(for: scan.items, displays: displays)
             guard let item = scan.items.first(where: {
@@ -49,6 +52,8 @@ final class ItemOpener {
             }),
                   scan.elementIndex(itemAt: item.frame) != nil else { return nil }
             return Target(frame: item.frame, scan: scan)
+        }, confirmed: { [weak self] confirmedKey in
+            self?.onConfirmedOpen(confirmedKey)
         }) { result in
             switch result {
             case .success: Log.items.info("Opened a menu bar item from the panel")

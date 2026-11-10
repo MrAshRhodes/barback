@@ -352,6 +352,16 @@ struct HotkeyRecorder: View {
 struct ItemsSettingsView: View {
     @ObservedObject var items: ItemsModel
     @ObservedObject var model: AppModel
+    @StateObject private var presentation = ToolPresentation()
+
+    private enum Tool: String, Identifiable {
+        case planner, doctor, usage
+        var id: String { rawValue }
+    }
+
+    private final class ToolPresentation: ObservableObject {
+        @Published var tool: Tool?
+    }
 
     var body: some View {
         Form {
@@ -363,10 +373,19 @@ struct ItemsSettingsView: View {
                 }
             }
 
+            Section("Menu Bar Tools") {
+                Button("Plan menu bar space…") { presentation.tool = .planner }
+                Button("Find a missing item…") { presentation.tool = .doctor }
+                Button("Review usage…") { presentation.tool = .usage }
+                Text("Inspect a snapshot, try a read-only space preview, or opt in to local opening counts. Nothing is rearranged automatically.")
+                    .settingsFooter()
+            }
+
             if items.hasNotch {
                 Section {
+                    NotchOverflowSettingsSection(model: model, items: items)
                     if items.notchRows.isEmpty {
-                        Label("No items are under the camera housing.", systemImage: "checkmark.circle")
+                        Label("No observed items overlap the camera housing.", systemImage: "checkmark.circle")
                     } else {
                         ForEach(items.notchRows) { row in
                             Label(row.title, systemImage: "exclamationmark.triangle")
@@ -381,9 +400,23 @@ struct ItemsSettingsView: View {
             }
 
             Section {
-                if items.rows.isEmpty {
-                    Text(items.isRefreshing ? String(localized: "Scanning…") : String(localized: "No menu bar items found."))
+                if let error = items.scanError {
+                    Label(error, systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                }
+                ForEach(items.scanWarnings, id: \.self) { warning in
+                    Label(warning, systemImage: "exclamationmark.circle")
                         .foregroundStyle(.secondary)
+                }
+                if items.snapshotContextIsStale, !items.rows.isEmpty, !items.isRefreshing {
+                    Label("Displays or the frontmost app changed since this list was taken. Refresh to update it.", systemImage: "clock.arrow.circlepath")
+                        .foregroundStyle(.secondary)
+                }
+                if items.rows.isEmpty {
+                    if items.isRefreshing || items.scanError == nil {
+                        Text(items.isRefreshing ? String(localized: "Scanning…") : String(localized: "No menu bar items found."))
+                            .foregroundStyle(.secondary)
+                    }
                 } else {
                     let shortcutKeys = Dictionary(items.panelCandidates.map { ($0.id, $0.key) }) { first, _ in first }
                     ForEach(items.rows) { row in
@@ -426,6 +459,13 @@ struct ItemsSettingsView: View {
         .formStyle(.grouped)
         .frame(width: SettingsMetrics.width, height: 460)
         .onAppear { items.refresh() }
+        .sheet(item: $presentation.tool) { tool in
+            switch tool {
+            case .planner: SpacePlannerView(items: items)
+            case .doctor: MenuBarDoctorView(items: items, model: model)
+            case .usage: UsageReviewView(review: model.usageReview, items: items)
+            }
+        }
     }
 }
 

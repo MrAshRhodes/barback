@@ -7,6 +7,20 @@ See [GitHub Releases](https://github.com/MrAshRhodes/barback/releases) for downl
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-10
+
+### Added
+
+- Local Item Review in Settings › Items: explicitly opt in to daily counts of confirmed successful openings through Barback, retained for today and the previous 29 UTC dates with the latest on-demand width and display/foreground context. Stop keeps existing data; Clear stops and deletes it. No click timeline, telemetry, settings export, automatic ranking or hiding; frequency is not importance.
+- A read-only Space Planner with per-display widths in logical points, separate notch-safe regions, hypothetical item exclusions and Reset preview. Unknown capacity, incomplete scans and stale measurements remain explicit; previews never move icons or change settings.
+- Menu Bar Doctor with timestamped current evidence and bounded, session-only previous observations for a missing item. Failed scans never establish absence. Rescan, reveal Barback's own section and open a reliably identified app are explicit user actions, not automatic repairs.
+- Up to 24 named context profiles for section visibility and configured panel membership. Manual selection lasts until the next context change; event-driven app and display rules use app-specific precedence and list order for ties. Physical icon arrangement remains manual, with no new permissions or polling.
+- An off-by-default, Accessibility-only notch overflow bar with application icons, keyboard and VoiceOver controls, horizontal paging and interaction-aware rehide. Observed notch-fit warnings appear in Settings, the status-item tooltip and menu, and VoiceOver announcements. No Screen Recording is used, and unidentifiable or unavailable items are not guessed.
+
+### Changed
+
+- Items snapshots expose scan failures, incomplete Accessibility identification and context changes instead of silently presenting old or missing data as current. Settings backups include profiles and the notch overflow preference, but not usage-review data or consent.
+
 ## [0.4.0] - 2026-11-03
 
 ### Added
@@ -85,7 +99,8 @@ First public release.
 - Universal (Apple silicon + Intel) app for macOS 14 Sonoma or later, distributed as a zip and a Homebrew cask (`brew install --cask mrashrhodes/tap/barback`).
 
 
-[Unreleased]: https://github.com/MrAshRhodes/barback/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/MrAshRhodes/barback/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/MrAshRhodes/barback/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/MrAshRhodes/barback/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/MrAshRhodes/barback/compare/v0.2.3...v0.3.0
 [0.2.3]: https://github.com/MrAshRhodes/barback/compare/v0.2.2...v0.2.3

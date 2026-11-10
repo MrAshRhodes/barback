@@ -1,6 +1,7 @@
 import AppKit
 import ApplicationServices
 import BarbackCore
+import Combine
 
 /// One row in Settings › Items, and one candidate for the drop-down panel.
 struct MenuBarItemRow: Identifiable, Hashable {
@@ -46,9 +47,20 @@ final class ItemsModel: ObservableObject {
     @Published private(set) var lastRefreshed: Date?
     @Published private(set) var accessibilityTrusted: Bool
     @Published private(set) var hasNotch = false
+    @Published private(set) var snapshotDisplays: [MenuBarDisplay] = []
+    @Published private(set) var snapshotDisplayNames: [String] = []
+    @Published private(set) var snapshotFrontmostApp: String?
+    @Published private(set) var snapshotFrontmostBundleID: String?
+    @Published private(set) var snapshotContextIsStale = false
+    @Published private(set) var scanError: String?
+    @Published private(set) var scanWarnings: [String] = []
+    @Published private(set) var lastAttempted: Date?
 
     private let scansEnabled: Bool
     private var refreshPending = false
+    private var contextRevision = 0
+    private var contextObservers: Set<AnyCancellable> = []
+    var onSuccessfulRefresh: (() -> Void)?
     /// Called once the next scan has finished (see `refresh(then:)`).
     private var refreshCompletions: [() -> Void] = []
     weak var statusBar: StatusBarController?
@@ -56,14 +68,24 @@ final class ItemsModel: ObservableObject {
     init() {
         accessibilityTrusted = AXIsProcessTrusted()
         scansEnabled = true
+        hasNotch = Self.currentDisplays().contains { $0.notch != nil }
     }
 
     /// An immutable menu-bar snapshot for previews and native UI tests, without scans or permission prompts.
-    init(snapshot rows: [MenuBarItemRow], accessibilityTrusted: Bool = true) {
+    init(
+        snapshot rows: [MenuBarItemRow], accessibilityTrusted: Bool = true,
+        displays: [MenuBarDisplay] = [], displayNames: [String] = [],
+        capturedAt: Date? = nil, scanError: String? = nil, isStale: Bool = false
+    ) {
         self.rows = rows
         self.accessibilityTrusted = accessibilityTrusted
         scansEnabled = false
-        hasNotch = rows.contains(where: \.overlapsNotch)
+        snapshotDisplays = displays
+        snapshotDisplayNames = displayNames
+        lastRefreshed = capturedAt
+        self.scanError = scanError
+        snapshotContextIsStale = isStale
+        hasNotch = displays.contains { $0.notch != nil } || rows.contains(where: \.overlapsNotch)
     }
 
     var notchRows: [MenuBarItemRow] { rows.filter(\.overlapsNotch) }
@@ -136,9 +158,17 @@ final class ItemsModel: ObservableObject {
             return
         }
         isRefreshing = true
+        observeContextIfNeeded()
         accessibilityTrusted = AXIsProcessTrusted()
 
         let displays = Self.currentDisplays()
+        let displayNames = ScreenInfo.screensWithMenuBar.map(\.localizedName)
+        let frontmost = NSWorkspace.shared.frontmostApplication
+        let frontmostName = frontmost?.localizedName
+        let frontmostBundleID = frontmost?.bundleIdentifier
+        let revision = contextRevision
+        let attempted = Date()
+        lastAttempted = attempted
         let tops = displays.map(\.frame.minY)
         hasNotch = displays.contains { $0.notch != nil }
         let own = statusBar?.ownItems
@@ -147,15 +177,32 @@ final class ItemsModel: ObservableObject {
 
         Task.detached(priority: .userInitiated) {
             let signpost = Log.signposter.beginInterval("Scan items", id: Log.signposter.makeSignpostID())
-            let items = AccessibilityScanner.scan(tops: tops, trusted: trusted, apps: apps).items
+            let scan = AccessibilityScanner.scan(tops: tops, trusted: trusted, apps: apps)
+            let scannedItems = scan.items
+            let error = scan.error
+            let warnings = scan.warnings
             Log.signposter.endInterval("Scan items", signpost)
             await MainActor.run {
                 let currentTrust = AXIsProcessTrusted()
                 self.accessibilityTrusted = currentTrust
                 if currentTrust == trusted {
-                    self.rows = Self.makeRows(items, own: own, displays: displays)
-                    self.lastRefreshed = Date()
-                    Log.items.info("Scanned \(items.count) menu bar items")
+                    self.scanError = error
+                    self.scanWarnings = warnings
+                    if error == nil {
+                        self.rows = Self.makeRows(scannedItems, own: own, displays: displays)
+                        self.snapshotDisplays = displays
+                        self.snapshotDisplayNames = displayNames
+                        self.snapshotFrontmostApp = frontmostName
+                        self.snapshotFrontmostBundleID = frontmostBundleID
+                        self.snapshotContextIsStale = revision != self.contextRevision
+                            || displays != Self.currentDisplays()
+                            || frontmostBundleID != NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+                        self.lastRefreshed = attempted
+                        self.onSuccessfulRefresh?()
+                        Log.items.info("Scanned \(scannedItems.count) menu bar items")
+                    } else {
+                        self.snapshotContextIsStale = true
+                    }
                 } else {
                     self.refreshPending = true
                 }
@@ -170,6 +217,27 @@ final class ItemsModel: ObservableObject {
                 }
             }
         }
+    }
+
+    /// Marks measurements as describing an earlier display or app context; observed, never polled.
+    func markSnapshotStale() {
+        contextRevision += 1
+        if lastRefreshed != nil { snapshotContextIsStale = true }
+    }
+
+    private func observeContextIfNeeded() {
+        guard contextObservers.isEmpty else { return }
+        NotificationCenter.default.publisher(for: NSApplication.didChangeScreenParametersNotification)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.hasNotch = Self.currentDisplays().contains { $0.notch != nil }
+                self?.markSnapshotStale()
+            }
+            .store(in: &contextObservers)
+        NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didActivateApplicationNotification)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.markSnapshotStale() }
+            .store(in: &contextObservers)
     }
 
     private static func makeRows(

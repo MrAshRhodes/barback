@@ -59,6 +59,7 @@ public enum SettingsTransfer {
         }
         // Codable leaves nil out; write an explicit null so "no shortcut" survives an import.
         if s.hotkey == nil { object["hotkey"] = NSNull() }
+        if s.activeProfileID == nil { object["activeProfileID"] = NSNull() }
         let document: [String: Any] = [
             "app": BarbackInfo.name,
             "appVersion": appVersion,

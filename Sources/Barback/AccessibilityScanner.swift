@@ -20,6 +20,8 @@ struct RunningAppInfo: Sendable {
 struct MenuBarScan {
     var items: [MenuBarItem]
     var elements: [(frame: CGRect, element: AXUIElement)]
+    var error: String? = nil
+    var warnings: [String] = []
 
     func elementIndex(itemAt frame: CGRect) -> Int? {
         let targets = items.indices.filter { items[$0].frame == frame }
@@ -44,8 +46,19 @@ struct AccessibilityReader {
 /// so call it from a background task only.
 enum AccessibilityScanner {
     /// Lists the window-list items and resolves them to apps and names when `trusted`.
-    nonisolated static func scan(tops: [CGFloat], trusted: Bool, apps: [RunningAppInfo]) -> MenuBarScan {
-        let raw = CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID) as? [[String: Any]] ?? []
+    nonisolated static func scan(
+        tops: [CGFloat], trusted: Bool, apps: [RunningAppInfo],
+        readWindows: () -> [[String: Any]]? = {
+            CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID) as? [[String: Any]]
+        }
+    ) -> MenuBarScan {
+        guard let raw = readWindows() else {
+            Log.items.error("The menu bar window list could not be read")
+            return MenuBarScan(
+                items: [], elements: [],
+                error: String(localized: "The menu bar window list could not be read. Previous observations are not current. Try Refresh.")
+            )
+        }
         return scan(windows: raw, tops: tops, trusted: trusted, apps: apps)
     }
 
@@ -61,17 +74,24 @@ enum AccessibilityScanner {
             items[index].bundleID = bundleIDs[pid_t(items[index].ownerPID)]
         }
         guard trusted else { return MenuBarScan(items: items, elements: []) }
-        let entries = extras(apps: apps, reader: reader)
+        var incompleteHosts = 0
+        let entries = extras(apps: apps, reader: reader) { incompleteHosts += 1 }
         for item in items where item.isHostedBySystem {
             Log.items.debug("CG system-hosted item frame=\(String(describing: item.frame), privacy: .private)")
         }
         items = MenuBarItemParser.resolve(items, using: entries.map(\.item))
-        return MenuBarScan(items: items, elements: entries.map { ($0.item.frame, $0.element) })
+        return MenuBarScan(
+            items: items, elements: entries.map { ($0.item.frame, $0.element) },
+            warnings: incompleteHosts == 0 ? [] : [
+                String(localized: "Accessibility identification was incomplete for \(incompleteHosts) application(s). Unidentified items or missing matches are not proof of absence.")
+            ]
+        )
     }
 
     /// The status item elements of every other running app.
     nonisolated static func extras(
-        apps: [RunningAppInfo], reader: AccessibilityReader = AccessibilityReader()
+        apps: [RunningAppInfo], reader: AccessibilityReader = AccessibilityReader(),
+        onReadFailure: () -> Void = {}
     ) -> [(item: AccessibilityItem, element: AXUIElement)] {
         var result: [(item: AccessibilityItem, element: AXUIElement)] = []
         for app in apps where app.pid != getpid() {
@@ -85,6 +105,7 @@ enum AccessibilityScanner {
             defer {
                 let elapsed = (reader.now() - started) * 1000
                 Log.items.debug("AX host=\(app.bundleID ?? app.name, privacy: .private) ms=\(elapsed) children=\(childCount) entries=\(resolvedCount) errors=\(errorCount)")
+                if errorCount > 0 { onReadFailure() }
             }
             func attribute(_ element: AXUIElement, _ attribute: String) -> AttributeRead {
                 let remaining = deadline - reader.now()
@@ -129,6 +150,7 @@ enum AccessibilityScanner {
             childCount = children.count
             for child in children {
                 guard reader.now() < deadline else {
+                    errorCount += 1
                     Log.items.debug("AX host=\(app.bundleID ?? app.name, privacy: .private) scan budget exhausted; remaining children skipped")
                     break
                 }

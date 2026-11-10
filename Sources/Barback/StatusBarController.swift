@@ -18,6 +18,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     private static let welcomeTipShownKey = "hasShownWelcomeTip"
 
     private let model: AppModel
+    private let items: ItemsModel
     private let chevron: NSStatusItem
     private let hiddenSeparator: NSStatusItem
     private var alwaysHiddenSeparator: NSStatusItem?
@@ -26,6 +27,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     private let menu = NSMenu()
 
     private(set) var state: SectionState = .shown
+    var currentSectionState: SectionState { state }
     private var validation: LayoutValidation = .unknown
     private var rehideTimer: Timer?
     private var itemOpening = false
@@ -40,6 +42,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     private var userActed = false
     private var welcomePopover: NSPopover?
     private let panel: DropDownPanelController
+    let notchOverflow: NotchOverflowController
     private let updates: UpdateController
     private weak var checkForUpdatesItem: NSMenuItem?
 
@@ -49,8 +52,10 @@ final class StatusBarController: NSObject, NSMenuDelegate {
 
     init(model: AppModel, items: ItemsModel, updates: UpdateController) {
         self.model = model
+        self.items = items
         self.updates = updates
         panel = DropDownPanelController(model: model, items: items)
+        notchOverflow = NotchOverflowController(model: model, items: items)
         Self.seedPositionIfNeeded(AutosaveName.chevron, relativeTo: nil)
         Self.seedPositionIfNeeded(AutosaveName.hidden, relativeTo: AutosaveName.chevron)
 
@@ -64,10 +69,21 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         super.init()
 
         panel.anchor = { [weak self] in self?.chevron.button }
-        panel.reveal = { [weak self] action in self?.perform(action, userInitiated: true) }
+        panel.reveal = { [weak self] action in
+            self?.perform(action, userInitiated: true, showNotchOverflow: false)
+        }
         panel.onOpenSettings = { [weak self] in self?.onOpenPanelSettings?() }
         panel.onVisibilityChange = { [weak self] _ in self?.updateChevronAppearance() }
         panel.onOpeningChange = { [weak self] in self?.itemOpeningDidChange($0) }
+        panel.onConfirmedOpen = { [weak model] key in model?.usageReview.recordConfirmedOpen(key: key) }
+        notchOverflow.anchor = { [weak self] in self?.chevron.button }
+        notchOverflow.sectionState = { [weak self] in self?.state ?? .hidden }
+        notchOverflow.reveal = { [weak self] action in
+            self?.perform(action, userInitiated: true, showNotchOverflow: false)
+        }
+        notchOverflow.onInteractionChange = { [weak self] in self?.notchInteractionDidChange() }
+        notchOverflow.onWarningChange = { [weak self] in self?.updateChevronAppearance() }
+        notchOverflow.onConfirmedOpen = { [weak model] key in model?.usageReview.recordConfirmedOpen(key: key) }
 
         configure(chevron.button)
         configureSeparator(hiddenSeparator, alwaysHidden: false)
@@ -79,10 +95,13 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         apply()
         observeEnvironment()
         updateAppSwitchObserver()
+        notchOverflow.settingsDidChange()
 
         // Hide once the items have been laid out, so the order check sees real frames.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-            guard let self, !self.userActed else { return }
+            guard let self, Self.shouldRunLaunchHide(
+                userActed: self.userActed, activeProfile: self.model.activeProfile?.visibility
+            ) else { return }
             self.perform(.hide, userInitiated: false)
         }
     }
@@ -91,9 +110,12 @@ final class StatusBarController: NSObject, NSMenuDelegate {
 
     /// - Parameter announce: post a VoiceOver announcement of the result (for actions without visible focus,
     ///   such as the hotkey and URL commands).
-    func perform(_ action: SectionAction, userInitiated: Bool, announce: Bool = false) {
+    func perform(_ action: SectionAction, userInitiated: Bool, announce: Bool = false, showNotchOverflow: Bool = true) {
         let next = SectionLayout.nextState(from: state, action: action, alwaysHiddenEnabled: model.settings.alwaysHiddenEnabled)
-        guard !Self.shouldDeferAutomaticRehide(nextState: next, userInitiated: userInitiated, itemOpening: itemOpening) else { return }
+        guard !Self.shouldDeferAutomaticRehide(
+            nextState: next, userInitiated: userInitiated,
+            itemOpening: itemOpening, barInteracting: notchOverflow.isInteracting
+        ) else { return }
         let signpost = Log.signposter.beginInterval("Toggle", id: Log.signposter.makeSignpostID())
         defer {
             Log.signposter.endInterval("Toggle", signpost)
@@ -120,13 +142,21 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         } else {
             cancelRehide()
         }
+        notchOverflow.sectionDidChange(allowOpen: showNotchOverflow && !itemOpening)
         Log.statusBar.debug("State → \(self.state.rawValue, privacy: .public)")
     }
 
     nonisolated static func shouldDeferAutomaticRehide(
-        nextState: SectionState, userInitiated: Bool, itemOpening: Bool
+        nextState: SectionState, userInitiated: Bool, itemOpening: Bool, barInteracting: Bool = false
     ) -> Bool {
-        itemOpening && !userInitiated && nextState == .hidden
+        (itemOpening || barInteracting) && !userInitiated && nextState == .hidden
+    }
+
+    /// The hide queued at launch would silently undo a profile that shows sections, which is applied before it
+    /// runs. A hidden profile keeps it, since it also retries a hide that couldn't be validated before the
+    /// layout settled. Normal auto-rehide is unaffected.
+    nonisolated static func shouldRunLaunchHide(userActed: Bool, activeProfile: ProfileVisibility?) -> Bool {
+        !userActed && (activeProfile ?? .hidden) == .hidden
     }
 
     private var actionPolicy: PanelActionPolicy {
@@ -143,6 +173,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         userActed = true
         revealedByHover = false
         cancelHoverExitRetry()
+        notchOverflow.close()
         panel.toggle()
         if announce {
             post(panel.isShown ? String(localized: "Hidden items panel opened") : String(localized: "Hidden items panel closed"))
@@ -152,12 +183,14 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     /// An item shortcut or `barback://open` link is opening an item outside the panel: keep revealed items in
     /// place until it has been pressed, as for an item opened from the panel.
     func externalItemOpeningDidChange(_ pending: Bool) {
+        if pending { notchOverflow.close() }
         itemOpeningDidChange(pending)
     }
 
     /// Opens the panel from the menu, whatever the click action.
     func showDropDownPanel() {
         userActed = true
+        notchOverflow.close()
         if !panel.isShown { panel.show() }
     }
 
@@ -182,6 +215,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     /// Called when settings change.
     func settingsDidChange(from old: BarbackSettings, to new: BarbackSettings) {
         if old.appearance != new.appearance {
+            items.markSnapshotStale()
             refreshImages()
             syncExtraDividers()
             apply()
@@ -211,6 +245,10 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             updateChevronAppearance()
             rebuildMenu()
         }
+        if old.notchOverflowEnabled != new.notchOverflowEnabled {
+            notchOverflow.settingsDidChange()
+            rebuildMenu()
+        }
     }
 
     /// Hover-to-show entry point.
@@ -227,7 +265,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     /// If a menu is open the exit stays pending and is retried (one-shot) and again when Barback's menu closes.
     func hoverDidExit() {
         cancelHoverExitRetry()
-        guard !itemOpening, revealedByHover else { return }
+        guard !itemOpening, !notchOverflow.isInteracting, revealedByHover else { return }
         let decision = HoverPolicy.exitDecision(
             state: state,
             revealedByHover: revealedByHover,
@@ -243,7 +281,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
 
     private func scheduleHoverExitRetry(after seconds: TimeInterval) {
         cancelHoverExitRetry()
-        guard !itemOpening else { return }
+        guard !itemOpening, !notchOverflow.isInteracting else { return }
         let timer = Timer(timeInterval: seconds, repeats: false) { [weak self] _ in
             MainActor.assumeIsolated {
                 self?.hoverExitRetry = nil
@@ -295,7 +333,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     }
 
     private func appDidActivate(pid: pid_t?) {
-        guard !itemOpening, state.isRevealed else { return }
+        guard !itemOpening, !notchOverflow.isInteracting, state.isRevealed else { return }
         let rehide = RehidePolicy.shouldRehideOnAppSwitch(
             enabled: model.settings.rehideOnAppSwitch,
             state: state,
@@ -337,8 +375,14 @@ final class StatusBarController: NSObject, NSMenuDelegate {
                 alwaysHidden: appearance.alwaysHiddenDivider.collapsedLength
             )
         )
-        if hiddenSeparator.length != lengths.hidden { hiddenSeparator.length = lengths.hidden }
-        if let a = alwaysHiddenSeparator, a.length != lengths.alwaysHidden { a.length = lengths.alwaysHidden }
+        if hiddenSeparator.length != lengths.hidden {
+            items.markSnapshotStale()
+            hiddenSeparator.length = lengths.hidden
+        }
+        if let a = alwaysHiddenSeparator, a.length != lengths.alwaysHidden {
+            items.markSnapshotStale()
+            a.length = lengths.alwaysHidden
+        }
         updateChevronAppearance()
     }
 
@@ -363,9 +407,19 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         }
     }
 
+    private func notchInteractionDidChange() {
+        if notchOverflow.isInteracting {
+            cancelRehide()
+            cancelHoverExitRetry()
+        } else if state.isRevealed {
+            scheduleRehide()
+            if revealedByHover { hoverDidExit() }
+        }
+    }
+
     private func scheduleRehide(after interval: TimeInterval? = nil) {
         cancelRehide()
-        guard !itemOpening else { return }
+        guard !itemOpening, !notchOverflow.isInteracting else { return }
         guard let delay = interval ?? RehidePolicy.initialDelay(autoRehideSeconds: model.settings.autoRehideSeconds) else { return }
         let timer = Timer(timeInterval: delay, repeats: false) { [weak self] _ in
             MainActor.assumeIsolated { self?.rehideTimerFired() }
@@ -382,7 +436,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
 
     private func rehideTimerFired() {
         rehideTimer = nil
-        guard !itemOpening else { return }
+        guard !itemOpening, !notchOverflow.isInteracting else { return }
         let context = RehideContext(
             state: state,
             autoRehideSeconds: model.settings.autoRehideSeconds,
@@ -453,6 +507,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             ? String(localized: "Click to open or close the hidden items panel. Option-click to show or hide every item in the menu bar, including always-hidden ones. Right-click for options.")
             : String(localized: "Click to show or hide menu bar items. Option-click to include always-hidden items. Right-click for options.")
         if let warning = model.layoutWarning { help = warning + "\n" + help }
+        if let warning = notchOverflow.fitStatus { help = warning + "\n" + help }
         button.toolTip = help
         button.setAccessibilityHelp(help)
     }
@@ -583,7 +638,8 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         observers.append(center.addObserver(forName: NSWindow.didMoveNotification, object: nil, queue: .main) { [weak self] note in
             MainActor.assumeIsolated {
                 guard let self, let window = note.object as? NSWindow else { return }
-                let ours = [self.chevron, self.hiddenSeparator, self.alwaysHiddenSeparator].compactMap { $0?.button?.window }
+                let ours = ([self.chevron, self.hiddenSeparator, self.alwaysHiddenSeparator].compactMap { $0 }
+                    + self.extraDividers).compactMap { $0.button?.window }
                 if ours.contains(where: { $0 === window }) { self.revalidateAfterMove() }
             }
         })
@@ -596,6 +652,8 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     }
 
     private func revalidateAfterMove() {
+        items.markSnapshotStale()
+        notchOverflow.environmentDidChange()
         let before = validation
         revalidate()
         if before != validation {
@@ -695,6 +753,23 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         }
         menu.addItem(showAll)
 
+        if notchOverflow.hasNotchedDisplay {
+            if let warning = notchOverflow.fitStatus {
+                let item = NSMenuItem(title: warning, action: nil, keyEquivalent: "")
+                item.isEnabled = false
+                item.image = NSImage(systemSymbolName: "exclamationmark.triangle", accessibilityDescription: String(localized: "Warning"))
+                menu.addItem(item)
+            }
+            if model.settings.notchOverflowEnabled {
+                let item = NSMenuItem(
+                    title: notchOverflow.isShown ? String(localized: "Close Notch Bar") : String(localized: "Open Notch Bar"),
+                    action: #selector(notchBarClicked), keyEquivalent: ""
+                )
+                item.target = self
+                menu.addItem(item)
+            }
+        }
+
         if let warning = model.layoutWarning {
             let item = NSMenuItem(title: warning, action: nil, keyEquivalent: "")
             item.isEnabled = false
@@ -734,6 +809,17 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         DispatchQueue.main.async { [weak self] in self?.showDropDownPanel() }
     }
     @objc private func closePanelClicked() { panel.close() }
+    @objc private func notchBarClicked() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            if self.notchOverflow.isShown {
+                self.notchOverflow.close()
+            } else {
+                self.panel.close()
+                self.notchOverflow.show()
+            }
+        }
+    }
     @objc private func showAllClicked() {
         perform(state == .shownAll ? .hide : .showAll, userInitiated: true)
     }

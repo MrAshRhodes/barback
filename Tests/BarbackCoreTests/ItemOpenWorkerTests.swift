@@ -221,6 +221,132 @@ struct ItemOpenWorkerTests {
         #expect(completions == [2])
     }
 
+    @MainActor @Test func aSupersededPressThatReachedItsActionStillReportsTheResult() async {
+        let activity = OpenActivity()
+        let gate = OpenGate()
+        let worker = ItemOpenWorker<Int>(
+            firstDelay: 0, retryDelay: 0,
+            isTrusted: { true },
+            press: { target in
+                activity.recordPress(target)
+                if target == 1 { gate.pause() }
+                return .success(())
+            }
+        )
+        var actions: [Int] = []
+        var completions: [Int] = []
+        worker.open(scan: { 1 }, actionResult: { _ in actions.append(1) }) { _ in completions.append(1) }
+        #expect(await gate.waitUntilEntered())
+        await withCheckedContinuation { continuation in
+            worker.open(scan: { 2 }, actionResult: { _ in actions.append(2) }) { _ in
+                completions.append(2)
+                continuation.resume()
+            }
+            gate.resume()
+        }
+        #expect(activity.pressed == [1, 2])
+        #expect(actions == [1, 2])
+        #expect(completions == [2])
+    }
+
+    @MainActor @Test func aCancelledPressThatReachedItsActionStillReportsTheResult() async {
+        let gate = OpenGate()
+        let queue = DispatchQueue(label: "test.cancel-in-flight-action")
+        let worker = ItemOpenWorker<Int>(
+            firstDelay: 0, retryDelay: 0, queue: queue,
+            isTrusted: { true },
+            press: { _ in gate.pause(); return .failure(.uncertain) }
+        )
+        var actions: [ItemOpenError] = []
+        var completions = 0
+        worker.open(scan: { 1 }, actionResult: { result in
+            if case .failure(let error) = result { actions.append(error) }
+        }) { _ in completions += 1 }
+        #expect(await gate.waitUntilEntered())
+        worker.cancel()
+        gate.resume()
+        await drain(queue)
+        #expect(actions == [.uncertain])
+        #expect(completions == 0)
+    }
+
+    @MainActor @Test func requestsThatFailBeforeTheirActionNeverReportAnActionResult() async {
+        let activity = OpenActivity()
+        var actions = 0
+        let untrusted = ItemOpenWorker<Int>(
+            firstDelay: 0, retryDelay: 0,
+            isTrusted: { false },
+            press: { target in activity.recordPress(target); return .success(()) }
+        )
+        let denied = await withCheckedContinuation { continuation in
+            untrusted.open(scan: { 1 }, actionResult: { _ in actions += 1 }) {
+                continuation.resume(returning: $0)
+            }
+        }
+        expectFailure(denied, .permissionRequired)
+        let trusted = ItemOpenWorker<Int>(
+            firstDelay: 0, retryDelay: 0,
+            isTrusted: { true },
+            press: { target in activity.recordPress(target); return .success(()) }
+        )
+        let missing = await withCheckedContinuation { continuation in
+            trusted.open(scan: { nil }, actionResult: { _ in actions += 1 }) {
+                continuation.resume(returning: $0)
+            }
+        }
+        expectFailure(missing, .unavailable)
+        #expect(actions == 0)
+        #expect(activity.pressed.isEmpty)
+    }
+
+    @MainActor @Test func aSupersededConfirmedPressIsStillCountedAsAnOpening() async {
+        let start = Date(timeIntervalSince1970: 1_767_268_800)
+        var review = UsageReview()
+        review.start(at: start)
+        let first = ItemKey(owner: "test.first", detail: "First")
+        let second = ItemKey(owner: "test.second", detail: "Second")
+        let gate = OpenGate()
+        let worker = ItemOpenWorker<Int>(
+            firstDelay: 0, retryDelay: 0,
+            isTrusted: { true },
+            press: { target in
+                if target == 1 { gate.pause() }
+                return .success(())
+            }
+        )
+        worker.open(key: first, scan: { 1 }, confirmed: { review.recordConfirmedOpen(key: $0, at: start) }) { _ in }
+        #expect(await gate.waitUntilEntered())
+        await withCheckedContinuation { continuation in
+            worker.open(key: second, scan: { 2 }, confirmed: { review.recordConfirmedOpen(key: $0, at: start) }) { _ in
+                continuation.resume()
+            }
+            gate.resume()
+        }
+        #expect(review.entries.first { $0.key == first }?.openings == 1)
+        #expect(review.entries.first { $0.key == second }?.openings == 1)
+    }
+
+    @MainActor @Test(arguments: [
+        ItemOpenError.couldNotOpen, .uncertain, .permissionRequired, .unavailable,
+    ])
+    func aPressThatAccessibilityDidNotConfirmIsNeverCounted(error: ItemOpenError) async {
+        let start = Date(timeIntervalSince1970: 1_767_268_800)
+        var review = UsageReview()
+        review.start(at: start)
+        let key = ItemKey(owner: "test.status", detail: "Status")
+        let worker = ItemOpenWorker<Int>(
+            firstDelay: 0, retryDelay: 0,
+            isTrusted: { true },
+            press: { _ in .failure(error) }
+        )
+        await withCheckedContinuation { continuation in
+            worker.open(key: key, scan: { 1 }, confirmed: { review.recordConfirmedOpen(key: $0, at: start) }) { _ in
+                continuation.resume()
+            }
+        }
+        #expect(review.entries.isEmpty)
+    }
+
     private func expectFailure(_ result: Result<Void, ItemOpenError>, _ expected: ItemOpenError) {
         if case .failure(let error) = result { #expect(error == expected) }
         else { Issue.record("Expected failure: \(expected)") }

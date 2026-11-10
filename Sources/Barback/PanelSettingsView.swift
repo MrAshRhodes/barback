@@ -301,8 +301,9 @@ struct PanelSettingsView: View {
     }
 }
 
-private struct GroupNameField: View {
+struct GroupNameField: View {
     let name: String
+    var label: LocalizedStringKey = "Panel name"
     let commit: (String) -> Void
     @StateObject private var field: NameFieldModel
     @FocusState private var focused: Bool
@@ -312,14 +313,15 @@ private struct GroupNameField: View {
         init(_ name: String) { draft = name }
     }
 
-    init(name: String, commit: @escaping (String) -> Void) {
+    init(name: String, label: LocalizedStringKey = "Panel name", commit: @escaping (String) -> Void) {
         self.name = name
+        self.label = label
         self.commit = commit
         _field = StateObject(wrappedValue: NameFieldModel(name))
     }
 
     var body: some View {
-        TextField("Panel name", text: $field.draft)
+        TextField(label, text: $field.draft)
             .textFieldStyle(.roundedBorder)
             .labelsHidden()
             .focused($focused)
@@ -328,7 +330,7 @@ private struct GroupNameField: View {
                 if !isFocused { finish() }
             }
             .onChange(of: name) { _, stored in field.draft = stored }
-            .accessibilityLabel(Text("Panel name"))
+            .accessibilityLabel(Text(label))
     }
 
     private func finish() {
