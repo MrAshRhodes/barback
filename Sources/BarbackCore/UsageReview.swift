@@ -15,6 +15,22 @@ public struct UsageReviewConfirmation {
     }
 }
 
+extension ItemOpenWorker {
+    /// Opens the item for `key` and reports the key once if Accessibility confirmed the press. A press that a newer
+    /// request has superseded is still reported: it opened the item even though its completion is dropped.
+    public func open(
+        key: ItemKey,
+        scan: @escaping @Sendable () -> Target?,
+        confirmed: @escaping @MainActor (ItemKey) -> Void,
+        completion: @escaping @MainActor (Result<Void, ItemOpenError>) -> Void
+    ) {
+        var confirmation = UsageReviewConfirmation(key: key)
+        open(scan: scan, actionResult: { result in
+            if let confirmedKey = confirmation.confirmedKey(for: result) { confirmed(confirmedKey) }
+        }, completion: completion)
+    }
+}
+
 public struct UsageReviewInterval: Codable, Equatable, Sendable {
     public var startedAt: Date
     public var endedAt: Date?

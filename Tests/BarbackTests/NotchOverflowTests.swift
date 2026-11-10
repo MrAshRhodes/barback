@@ -215,4 +215,75 @@ struct NotchOverflowTests {
         itemButton.performClick(nil)
         #expect(opened == 1)
     }
+
+    /// A strip whose panel sits far off-screen, so it can be shown and torn down without a notched display.
+    private func offScreenStrip(defaults: UserDefaults, rows: [MenuBarItemRow]) -> (NotchOverflowController, ItemsModel) {
+        let model = AppModel(store: SettingsStore(defaults: defaults))
+        model.settings.notchOverflowEnabled = true
+        let items = ItemsModel(snapshot: rows, displays: ItemsModel.currentDisplays(), capturedAt: Date())
+        let controller = NotchOverflowController(
+            model: model, items: items, isTrusted: { true }, requestTrust: { true }, hasNotch: { true },
+            placement: { _ in
+                NotchOverflowPlacement(
+                    screenFrame: CGRect(x: -20_000, y: -20_000, width: 1_512, height: 982),
+                    panelFrame: CGRect(x: -20_000, y: -20_000, width: 360, height: 240)
+                )
+            },
+            // Ordering a real window front here ends the whole test process early, silently and with exit code 0.
+            present: { _ in },
+            refresh: {}
+        )
+        return (controller, items)
+    }
+
+    @Test func openingAnItemNeverDropsTheInteractionBetweenTheStripAndThePress() throws {
+        _ = NSApplication.shared
+        let suite = "BarbackTests.Notch.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let (controller, items) = offScreenStrip(defaults: defaults, rows: [row(1, visibility: .offScreen)])
+        defer { controller.close() }
+        var interaction: [Bool] = []
+        var reveals: [(action: SectionAction, interacting: Bool)] = []
+        controller.onInteractionChange = { [unowned controller] in interaction.append(controller.isInteracting) }
+        controller.reveal = { [unowned controller] in reveals.append(($0, controller.isInteracting)) }
+        controller.show()
+        #expect(controller.isShown)
+        let item = try #require(
+            NotchOverflowContent.candidates(rows: items.rows, display: 0, alwaysHiddenEnabled: false).first
+        )
+        interaction.removeAll()
+
+        controller.open(item)
+
+        // The status bar rehides and ends hover reveals whenever the interaction flips to false, which must not
+        // happen between dismissing the strip and pressing the item.
+        #expect(!interaction.isEmpty)
+        #expect(interaction.allSatisfy { $0 })
+        #expect(reveals.map(\.action) == [.show])
+        #expect(reveals.allSatisfy { $0.interacting })
+        #expect(!controller.isShown)
+        #expect(controller.isInteracting)
+    }
+
+    @Test func closingTheStripEndsTheInteractionExactlyOnce() throws {
+        _ = NSApplication.shared
+        let suite = "BarbackTests.Notch.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let (controller, _) = offScreenStrip(defaults: defaults, rows: [row(1)])
+        defer { controller.close() }
+        var interaction: [Bool] = []
+        controller.onInteractionChange = { [unowned controller] in interaction.append(controller.isInteracting) }
+
+        controller.show()
+        #expect(interaction == [true])
+        interaction.removeAll()
+
+        controller.close()
+        controller.close()
+
+        #expect(interaction == [false])
+        #expect(!controller.isShown && !controller.isInteracting)
+    }
 }

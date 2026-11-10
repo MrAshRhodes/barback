@@ -99,7 +99,9 @@ final class StatusBarController: NSObject, NSMenuDelegate {
 
         // Hide once the items have been laid out, so the order check sees real frames.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-            guard let self, !self.userActed else { return }
+            guard let self, Self.shouldRunLaunchHide(
+                userActed: self.userActed, activeProfile: self.model.activeProfile?.visibility
+            ) else { return }
             self.perform(.hide, userInitiated: false)
         }
     }
@@ -148,6 +150,13 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         nextState: SectionState, userInitiated: Bool, itemOpening: Bool, barInteracting: Bool = false
     ) -> Bool {
         (itemOpening || barInteracting) && !userInitiated && nextState == .hidden
+    }
+
+    /// The hide queued at launch would silently undo a profile that shows sections, which is applied before it
+    /// runs. A hidden profile keeps it, since it also retries a hide that couldn't be validated before the
+    /// layout settled. Normal auto-rehide is unaffected.
+    nonisolated static func shouldRunLaunchHide(userActed: Bool, activeProfile: ProfileVisibility?) -> Bool {
+        !userActed && (activeProfile ?? .hidden) == .hidden
     }
 
     private var actionPolicy: PanelActionPolicy {

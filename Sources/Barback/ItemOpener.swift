@@ -36,13 +36,13 @@ final class ItemOpener {
         }
     )
 
-    /// A newer call or cancellation abandons scans that have not committed their press yet.
+    /// A newer call or cancellation abandons scans that have not committed their press yet. A press that already
+    /// reached Accessibility is still counted once, even when a newer call has superseded it.
     func open(key: ItemKey, display: Int?, completion: @escaping (Result<Void, ItemOpenError>) -> Void = { _ in }) {
-        var confirmation = UsageReviewConfirmation(key: key)
         let displays = ItemsModel.currentDisplays()
         let tops = displays.map(\.frame.minY)
         let apps = RunningAppInfo.current()
-        worker.open(scan: {
+        worker.open(key: key, scan: {
             let scan = AccessibilityScanner.scan(tops: tops, trusted: true, apps: apps)
             let keys = ItemKeyAssigner.panelKeys(for: scan.items, displays: displays)
             guard let item = scan.items.first(where: {
@@ -52,13 +52,12 @@ final class ItemOpener {
             }),
                   scan.elementIndex(itemAt: item.frame) != nil else { return nil }
             return Target(frame: item.frame, scan: scan)
-        }) { [weak self] result in
+        }, confirmed: { [weak self] confirmedKey in
+            self?.onConfirmedOpen(confirmedKey)
+        }) { result in
             switch result {
             case .success: Log.items.info("Opened a menu bar item from the panel")
             case .failure(let error): Log.items.notice("Could not confirm item opening: \(error.localizedDescription, privacy: .public)")
-            }
-            if let confirmedKey = confirmation.confirmedKey(for: result) {
-                self?.onConfirmedOpen(confirmedKey)
             }
             completion(result)
         }

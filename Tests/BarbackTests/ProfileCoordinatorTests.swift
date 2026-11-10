@@ -74,6 +74,55 @@ struct ProfileCoordinatorTests {
         #expect(h.model.settings.activeProfileID == manual.id)
     }
 
+    /// What the delayed hide queued at launch decides when it fires, after `start()` has applied the profile.
+    private func launchHideStillRuns(_ h: Harness) -> Bool {
+        StatusBarController.shouldRunLaunchHide(userActed: false, activeProfile: h.model.activeProfile?.visibility)
+    }
+
+    @Test func aRestoredProfileThatShowsSectionsSurvivesTheLaunchHide() {
+        for visibility in [ProfileVisibility.shown, .shownAll] {
+            let saved = VisibilityProfile(name: "Saved", visibility: visibility)
+            let h = Harness(profiles: [desk, saved], active: saved.id)
+            h.coordinator.start()
+            #expect(h.applied == [visibility])
+            #expect(!launchHideStillRuns(h), "A \(visibility) profile restored at launch must not be hidden again")
+        }
+    }
+
+    @Test func aMatchedProfileThatShowsSectionsSurvivesTheLaunchHide() {
+        let h = Harness(profiles: [desk, keynote])
+        h.context.externalDisplayCount = 1
+        h.coordinator.start()
+        #expect(h.applied == [.shownAll])
+        #expect(!launchHideStillRuns(h))
+    }
+
+    @Test func hiddenAndUnmatchedLaunchesKeepTheLaunchHide() {
+        let quiet = VisibilityProfile(name: "Quiet", visibility: .hidden)
+        let restoredHidden = Harness(profiles: [quiet], active: quiet.id)
+        restoredHidden.coordinator.start()
+        #expect(restoredHidden.applied == [.hidden])
+        #expect(launchHideStillRuns(restoredHidden))
+
+        let unmatched = Harness(profiles: [desk, keynote], base: .shownAll)
+        unmatched.coordinator.start()
+        #expect(unmatched.applied.isEmpty)
+        #expect(launchHideStillRuns(unmatched))
+
+        let withoutProfiles = Harness()
+        withoutProfiles.coordinator.start()
+        #expect(launchHideStillRuns(withoutProfiles))
+    }
+
+    @Test func theLaunchHideFollowsAProfileChosenBeforeItRuns() {
+        let h = Harness(profiles: [manual, keynote], active: manual.id)
+        h.coordinator.start()
+        #expect(!launchHideStillRuns(h))
+        h.coordinator.select(keynote.id)
+        #expect(h.applied == [.shown, .hidden])
+        #expect(launchHideStillRuns(h))
+    }
+
     @Test func appRulesWinAndBaseReturnsWhenNothingMatches() {
         let h = Harness(profiles: [desk, keynote], base: .shown)
         h.coordinator.start()

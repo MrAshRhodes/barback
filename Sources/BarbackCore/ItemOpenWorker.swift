@@ -46,9 +46,14 @@ public final class ItemOpenWorker<Target: Sendable> {
 
     deinit { operation?.cancel() }
 
-    /// Supersedes the previous request. Completion runs once on the main actor for the current request only.
+    /// Supersedes the previous request. `completion` runs once on the main actor for the current request only.
+    ///
+    /// `actionResult` runs once on the main actor for every press that reached its Accessibility action, even if a
+    /// newer request or `cancel()` has since replaced it, because a committed press cannot be retracted. It never runs
+    /// for a request that failed or was cancelled before its action.
     public func open(
         scan: @escaping @Sendable () -> Target?,
+        actionResult: @escaping @MainActor (Result<Void, ItemOpenError>) -> Void = { _ in },
         completion: @escaping @MainActor (Result<Void, ItemOpenError>) -> Void
     ) {
         cancel()
@@ -57,8 +62,9 @@ public final class ItemOpenWorker<Target: Sendable> {
         let attempt = ItemOpenAttempt(
             queue: queue, retryDelay: retryDelay, permit: permit,
             isTrusted: isTrusted, scan: scan, press: press
-        ) { [weak self] result in
+        ) { [weak self] result, pressed in
             Task { @MainActor [weak self] in
+                if pressed { actionResult(result) }
                 guard let self, self.operation === permit else { return }
                 self.operation = nil
                 completion(result)
@@ -100,7 +106,8 @@ private final class ItemOpenAttempt<Target: Sendable>: Sendable {
     let isTrusted: @Sendable () -> Bool
     let scan: @Sendable () -> Target?
     let press: @Sendable (Target) -> Result<Void, ItemOpenError>
-    let finish: @Sendable (Result<Void, ItemOpenError>) -> Void
+    /// `pressed` is true only when the result comes from an action that was committed to Accessibility.
+    let finish: @Sendable (Result<Void, ItemOpenError>, _ pressed: Bool) -> Void
 
     init(
         queue: DispatchQueue,
@@ -109,7 +116,7 @@ private final class ItemOpenAttempt<Target: Sendable>: Sendable {
         isTrusted: @escaping @Sendable () -> Bool,
         scan: @escaping @Sendable () -> Target?,
         press: @escaping @Sendable (Target) -> Result<Void, ItemOpenError>,
-        finish: @escaping @Sendable (Result<Void, ItemOpenError>) -> Void
+        finish: @escaping @Sendable (Result<Void, ItemOpenError>, _ pressed: Bool) -> Void
     ) {
         self.queue = queue
         self.retryDelay = retryDelay
@@ -127,22 +134,22 @@ private final class ItemOpenAttempt<Target: Sendable>: Sendable {
     private func run(isRetry: Bool) {
         guard permit.isCurrent else { return }
         guard isTrusted() else {
-            finish(.failure(.permissionRequired))
+            finish(.failure(.permissionRequired), false)
             return
         }
         let target = scan()
         guard permit.isCurrent else { return }
         guard let target else {
-            if isRetry { finish(.failure(.unavailable)) }
+            if isRetry { finish(.failure(.unavailable), false) }
             else { schedule(after: retryDelay, isRetry: true) }
             return
         }
         guard isTrusted() else {
-            finish(.failure(.permissionRequired))
+            finish(.failure(.permissionRequired), false)
             return
         }
-        // Once committed, cancellation can suppress the result but cannot undo an in-flight AX press.
+        // Once committed, cancellation can suppress the completion but cannot undo an in-flight AX press.
         guard permit.beginAction() else { return }
-        finish(press(target))
+        finish(press(target), true)
     }
 }

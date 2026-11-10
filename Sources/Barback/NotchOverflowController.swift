@@ -40,6 +40,24 @@ enum NotchOverflowContent {
     }
 }
 
+/// Where the strip opens: a notched display (AppKit coordinates) and the panel's frame on it.
+struct NotchOverflowPlacement: Equatable {
+    let screenFrame: CGRect
+    let panelFrame: CGRect
+
+    /// Prefers the notched display the status item is on.
+    @MainActor
+    static func measured(near anchor: NSStatusBarButton?) -> NotchOverflowPlacement? {
+        let screens = ScreenInfo.screensWithMenuBar.filter { ScreenInfo.notch(for: $0) != nil }
+        let screen = screens.first { $0 == anchor?.window?.screen } ?? screens.first
+        guard let screen, let notch = ScreenInfo.notch(for: screen),
+              let frame = NotchFit.panelFrame(screen: screen.frame, visible: screen.visibleFrame, notch: notch) else {
+            return nil
+        }
+        return NotchOverflowPlacement(screenFrame: screen.frame, panelFrame: frame)
+    }
+}
+
 /// No scan, event monitor or permission prompt is installed merely by constructing this controller.
 @MainActor
 final class NotchOverflowController: ObservableObject {
@@ -54,6 +72,8 @@ final class NotchOverflowController: ObservableObject {
     private let isTrusted: () -> Bool
     private let requestTrust: () -> Bool
     private let hasNotch: @MainActor () -> Bool
+    private let placement: @MainActor (NSStatusBarButton?) -> NotchOverflowPlacement?
+    private let present: @MainActor (NotchOverflowWindow) -> Void
     private let refresh: () -> Void
     private var window: NotchOverflowWindow?
     private var targetScreenFrame: CGRect?
@@ -86,6 +106,13 @@ final class NotchOverflowController: ObservableObject {
             AXIsProcessTrustedWithOptions(["AXTrustedCheckOptionPrompt": true] as CFDictionary)
         },
         hasNotch: @escaping @MainActor () -> Bool = { NSScreen.screens.contains { ScreenInfo.notch(for: $0) != nil } },
+        placement: @escaping @MainActor (NSStatusBarButton?) -> NotchOverflowPlacement? = {
+            NotchOverflowPlacement.measured(near: $0)
+        },
+        present: @escaping @MainActor (NotchOverflowWindow) -> Void = {
+            $0.orderFrontRegardless()
+            $0.makeKey()
+        },
         refresh: (() -> Void)? = nil
     ) {
         self.model = model
@@ -93,6 +120,8 @@ final class NotchOverflowController: ObservableObject {
         self.isTrusted = isTrusted
         self.requestTrust = requestTrust
         self.hasNotch = hasNotch
+        self.placement = placement
+        self.present = present
         self.refresh = refresh ?? { [weak items] in items?.refresh() }
         hasNotchedDisplay = hasNotch()
         opener.onConfirmedOpen = { [weak self] in self?.onConfirmedOpen($0) }
@@ -172,16 +201,13 @@ final class NotchOverflowController: ObservableObject {
             window.makeKey()
             return
         }
-        let screens = ScreenInfo.screensWithMenuBar.filter { ScreenInfo.notch(for: $0) != nil }
-        let screen = screens.first { $0 == anchor()?.window?.screen } ?? screens.first
-        guard let screen, let notch = ScreenInfo.notch(for: screen),
-              let frame = NotchFit.panelFrame(screen: screen.frame, visible: screen.visibleFrame, notch: notch) else {
+        guard let target = placement(anchor()) else {
             explanation = String(localized: "A notched display must have a menu bar and enough room beside the notch. Use the regular drop-down panel when that area isn’t available.")
             return
         }
         opener.cancel()
         isOpening = false
-        targetScreenFrame = screen.frame
+        targetScreenFrame = target.screenFrame
         let panel = NotchOverflowWindow()
         panel.onClose = { [weak self] in self?.close() }
         panel.onRefresh = { [weak self] in
@@ -190,14 +216,13 @@ final class NotchOverflowController: ObservableObject {
             self.refresh()
         }
         panel.onOpen = { [weak self] in self?.open($0) }
-        panel.setFrame(frame, display: false)
+        panel.setFrame(target.panelFrame, display: false)
         window = panel
         isShown = true
         onInteractionChange()
         rebuild()
         installDismissal()
-        panel.orderFrontRegardless()
-        panel.makeKey()
+        present(panel)
         if !items.isRefreshing { refresh() }
     }
 
@@ -205,6 +230,11 @@ final class NotchOverflowController: ObservableObject {
         let wasInteracting = isInteracting
         opener.cancel()
         isOpening = false
+        tearDownWindow()
+        if wasInteracting { onInteractionChange() }
+    }
+
+    private func tearDownWindow() {
         window?.orderOut(nil)
         window = nil
         targetScreenFrame = nil
@@ -213,7 +243,6 @@ final class NotchOverflowController: ObservableObject {
         monitors.removeAll()
         for (center, observer) in observers { center.removeObserver(observer) }
         observers.removeAll()
-        if wasInteracting { onInteractionChange() }
     }
 
     private func disableForPermission() {
@@ -284,7 +313,7 @@ final class NotchOverflowController: ObservableObject {
         )
     }
 
-    private func open(_ item: DropDownPanelItem) {
+    func open(_ item: DropDownPanelItem) {
         guard model.settings.notchOverflowEnabled, isShown, !items.isRefreshing,
               !items.snapshotContextIsStale, items.scanError == nil,
               ItemsModel.currentDisplays() == items.snapshotDisplays,
@@ -300,8 +329,11 @@ final class NotchOverflowController: ObservableObject {
             disableForPermission()
             return
         }
-        close()
+        // Mark the opening before the strip goes away, so `isInteracting` never drops (and the revealed section
+        // never gets a rehide or hover exit) between dismissing the strip and pressing the item.
+        opener.cancel()
         isOpening = true
+        tearDownWindow()
         onInteractionChange()
         if let action = item.revealAction { reveal(action) }
         opener.open(key: item.key, display: display) { [weak self] result in
