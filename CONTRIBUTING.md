@@ -75,6 +75,10 @@ packaging/signing/         Developer ID requirements and release credential refe
 
 ## Releasing
 
+### macOS 27 compatibility advisory
+
+The currently downloadable v0.5.0 does not support one-click hide/reveal on macOS 27 and later for now. An assessment-mode workaround we investigated also hid unrelated menu bar icons; do not recommend it or additional permissions as a fix. Direct users to manually open **System Settings → Menu Bar → Allow in the Menu Bar**. Configured drop-down panels still work, and macOS 14–26 hiding is unchanged. The public advisory is documentation only, not a new app version, in-app Settings action or hiding backend.
+
 See [Release signing](packaging/signing/README.md) for credential references, verification evidence and hosted-CI setup. The tag-only `release` environment supplies credentials to the hosted workflow using the same temporary-keychain approach as Glint; missing or invalid credentials stop publication.
 
 Local `make app`, `make zip` and `make dmg` remain ad-hoc development builds by default; do not distribute them as production releases. Production packaging requires the existing Developer ID Application identity and a notarytool Keychain profile:

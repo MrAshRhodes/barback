@@ -4,7 +4,7 @@ cask "barback" do
 
   url "https://github.com/MrAshRhodes/barback/releases/download/v#{version}/Barback-#{version}.zip"
   name "Barback"
-  desc "Fast, lightweight menu bar item hider"
+  desc "Menu bar panels, with icon hiding on macOS 14-26"
   homepage "https://github.com/MrAshRhodes/barback"
 
   livecheck do
@@ -27,12 +27,18 @@ cask "barback" do
   ]
 
   caveats <<~EOS
-    Core hiding needs no Screen Recording or Accessibility permission.
+    On macOS 27 and later, one-click hide/reveal is not supported for now.
+    An assessment-mode workaround we investigated also hid unrelated icons.
+    Do not rely on Barback's hiding controls there. Manually open
+    System Settings > Menu Bar > Allow in the Menu Bar to choose apps.
+    Configured drop-down panels still work.
+    Hiding on macOS 14-26 is unchanged and needs no Screen Recording
+    or Accessibility permission.
     Opening items from the optional drop-down panel requires Accessibility.
     When upgrading from an ad-hoc build, remove the old Barback entry in
     System Settings > Privacy & Security > Accessibility and add the new app.
 
-    To hide a menu bar item, hold Command (⌘) and drag it to the left of
+    On macOS 14-26, to hide an item, hold Command (⌘) and drag it to the left of
     Barback's separator, then click the Barback chevron (or press ⌃⌥⌘B)
     to show or hide it. Option-click the chevron to reveal always-hidden items.
   EOS

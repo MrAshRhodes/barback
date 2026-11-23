@@ -1,5 +1,7 @@
 ## Install
 
+**macOS 27 and later — known issue:** one-click hide/reveal is not supported for now. An assessment-mode workaround we investigated also hid unrelated menu bar icons. Do not rely on Barback's hiding controls there; manually open **System Settings → Menu Bar → Allow in the Menu Bar** to choose which apps appear. Configured drop-down panels still work. Hiding on macOS 14–26 is unchanged. This is compatibility guidance, not a new hiding backend.
+
 ```sh
 brew install --cask mrashrhodes/tap/barback
 ```
@@ -17,7 +19,7 @@ This release is Developer ID signed and notarized by Apple, with the ticket stap
 
 Alternatively, download `Barback-@VERSION@.dmg` and `Barback-@VERSION@.dmg.sha256`, verify with `shasum -a 256 -c "Barback-@VERSION@.dmg.sha256"`, then open the disk image and drag Barback to Applications. The DMG is also signed, notarized and stapled.
 
-Core hiding needs **no** Screen Recording or Accessibility permission. The optional drop-down panel requires Accessibility to open an item's menu. To hide an item, hold ⌘ and drag it to the left of Barback's separator; click the chevron or press ⌃⌥⌘B to show or hide it.
+On macOS 14–26, hiding needs **no** Screen Recording or Accessibility permission. To hide an item on those versions, hold ⌘ and drag it to the left of Barback's separator; click the chevron or press ⌃⌥⌘B to show or hide it. The optional drop-down panel requires Accessibility to open an item's menu, including on macOS 27 and later. Opening System Settings needs no additional permission.
 
 ## Update an existing installation
 
