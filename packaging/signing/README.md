@@ -111,7 +111,9 @@ If notarization fails or times out, the script retrieves submission diagnostics 
 
 ## Migration and verification evidence
 
-Versions through 0.2.1 were ad-hoc signed. On the first Developer ID upgrade, users who enabled Accessibility should remove the old Barback entry in System Settings, add the replacement app in `/Applications`, enable it and reopen Barback. Core hiding and hotkeys remain permission-free. Stable signing supports subsequent grant continuity, but that behavior has not been tested across two installed production updates.
+Versions through 0.2.1 were ad-hoc signed. On the first Developer ID upgrade, users who enabled Accessibility should remove the old Barback entry in System Settings, add the replacement app in `/Applications`, enable it and reopen Barback. Hiding on macOS 14–26 and hotkeys remain permission-free. Stable signing supports subsequent grant continuity, but that behavior has not been tested across two installed production updates.
+
+**macOS 27 and later — known issue in v0.5.0:** one-click hide/reveal is not supported for now. An assessment-mode workaround we investigated also hid unrelated icons. Signing or granting more permissions does not fix that issue. Do not rely on Barback's hiding controls there; manually open **System Settings → Menu Bar → Allow in the Menu Bar** to choose apps. Configured drop-down panels still work, with Accessibility required to open an item's menu. Hiding on macOS 14–26 is unchanged. See the [current user guidance](../../README.md#install).
 
 Local candidate `0.2.2-notary.1` was built on 30 October 2026 for arm64 and x86_64:
 

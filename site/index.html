@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Barback: keep the menu bar clear · free menu bar icon hider for macOS</title>
-<meta name="description" content="Barback is a free, open-source menu bar item hider for macOS. Tuck icons behind a chevron and bring them back with a click or ⌃⌥⌘B. No polling, no screen recording, no required permissions, no telemetry.">
+<title>Barback: menu bar hiding on macOS 14–26 · macOS 27 known issue</title>
+<meta name="description" content="Free, open-source menu bar hiding on macOS 14–26. On macOS 27 and later, one-click hiding is unavailable for now; use System Settings → Menu Bar. Drop-down panels still work.">
 <link rel="canonical" href="https://mrashrhodes.github.io/barback/">
 <meta name="theme-color" content="#0E0F0C">
 <meta name="color-scheme" content="dark">
@@ -16,16 +16,16 @@
 <link rel="stylesheet" href="styles.css">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Barback">
-<meta property="og:title" content="Barback: keep the menu bar clear">
-<meta property="og:description" content="A free, open-source menu bar icon hider for macOS. One chevron, one separator, no permissions required.">
+<meta property="og:title" content="Barback: menu bar hiding on macOS 14–26">
+<meta property="og:description" content="Free menu bar hiding on macOS 14–26. On macOS 27 and later, hiding is unavailable for now; use System Settings → Menu Bar. Drop-down panels still work.">
 <meta property="og:url" content="https://mrashrhodes.github.io/barback/">
 <meta property="og:image" content="https://mrashrhodes.github.io/barback/assets/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="Barback: keep the bar clear. A free menu bar icon hider for macOS.">
+<meta property="og:image:alt" content="Barback: keep the bar clear. Promotional artwork for menu bar hiding on macOS 14–26.">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Barback: keep the menu bar clear">
-<meta name="twitter:description" content="A free, open-source menu bar icon hider for macOS. One chevron, one separator, no permissions required.">
+<meta name="twitter:title" content="Barback: menu bar hiding on macOS 14–26">
+<meta name="twitter:description" content="Free menu bar hiding on macOS 14–26. On macOS 27 and later, hiding is unavailable for now; use System Settings → Menu Bar. Drop-down panels still work.">
 <meta name="twitter:image" content="https://mrashrhodes.github.io/barback/assets/og.png">
 <script>document.documentElement.classList.add("js")</script>
 <script src="site.js" defer></script>
@@ -34,7 +34,7 @@
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
   "name": "Barback",
-  "description": "A fast, lightweight, open-source menu bar item hider for macOS.",
+  "description": "Free, open-source menu bar hiding on macOS 14–26. In v0.5.0, one-click hide/reveal is not supported on macOS 27 and later. Use System Settings → Menu Bar → Allow in the Menu Bar manually instead. Configured drop-down panels still work.",
   "applicationCategory": "UtilitiesApplication",
   "operatingSystem": "macOS 14 or later",
   "license": "https://opensource.org/licenses/MIT",
@@ -92,6 +92,7 @@
   <section class="hero" aria-labelledby="hero-title">
     <div class="wrap">
       <div class="mb-notes">
+        <p class="fine">Interactive demo · separator hiding on macOS 14–26</p>
         <p class="mb-code"><span class="c-obj" id="code-obj">hiddenSeparator</span><span class="c-op">.length = </span><span class="c-num" id="code-num">10_000</span> <span class="c-com" id="code-com">// hidden items pushed off-screen</span></p>
         <p class="mb-help" id="mb-help" hidden>
           <span class="mb-help-line">Click <span class="sym sym-red" aria-hidden="true">‹</span><span class="sr-only">the chevron</span> or press <button type="button" class="key key-b" id="key-b" aria-pressed="true" title="Single-key shortcut (click to turn off)"><kbd>B</kbd><span class="sr-only"> key shortcut</span></button></span>
@@ -105,7 +106,7 @@
       <h1 class="hero-title" id="hero-title"><span class="ht-line">Keep the bar</span> <span class="ht-line ht-outline">clear.</span></h1>
 
       <div class="hero-foot">
-        <p class="lede">Barback tucks the menu bar icons you rarely need behind a chevron, and brings them back with one click or <kbd class="combo">⌃⌥⌘B</kbd>. No polling, no screen recording, no permissions required. One job, done instantly.</p>
+        <p class="lede">On macOS 14–26, Barback tucks the menu bar icons you rarely need behind a chevron, and brings them back with one click or <kbd class="combo">⌃⌥⌘B</kbd>. Hiding needs no Screen Recording or Accessibility permission. In v0.5.0, one-click hide/reveal is not supported on macOS 27 and later; use the system’s Menu Bar settings manually instead.</p>
         <div class="hero-actions">
           <div class="brew">
             <span class="brew-prompt" aria-hidden="true">$</span>
@@ -116,9 +117,10 @@
             <a class="btn btn-brass" href="https://github.com/MrAshRhodes/barback/releases/latest">Download latest release</a>
             <a class="btn btn-ghost" href="https://github.com/MrAshRhodes/barback">View source</a>
           </div>
-          <p class="fine">macOS 14 Sonoma or later · Apple silicon &amp; Intel · MIT license</p>
+          <p class="fine">macOS 14+ · hiding on 14–26 only for now · Apple silicon &amp; Intel · MIT</p>
         </div>
       </div>
+      <p class="tip" id="macos-27"><strong>macOS 27 and later — known issue in v0.5.0:</strong> one-click hide/reveal is unavailable for now. An assessment-mode workaround we investigated also hid unrelated menu bar icons, so it is not a safe workaround. Do not rely on Barback’s hiding controls there. Manually open <strong>System Settings → Menu Bar → Allow in the Menu Bar</strong> to choose which apps appear. Configured drop-down panels still work, with Accessibility permission needed to open an item’s menu. Hiding on macOS 14–26 is unchanged.</p>
     </div>
   </section>
 
@@ -127,7 +129,7 @@
       <header class="sec-head reveal">
         <p class="eyebrow"><span class="no">No. 01</span> House recipe</p>
         <h2 id="recipe-title">How it’s mixed</h2>
-        <p class="sec-lede">Every good menu bar hider runs on one old trick, and it fits on an index card.</p>
+        <p class="sec-lede">Barback’s separator recipe for macOS 14–26 fits on an index card. This is the behavior shown in the interactive demo above, not a macOS 27 workaround.</p>
       </header>
 
       <article class="card reveal" aria-labelledby="card-title">
@@ -183,8 +185,8 @@
       <header class="sec-head reveal">
         <p class="eyebrow"><span class="no">No. 02</span> The tab</p>
         <h2 id="tab-title">Runs up nothing.</h2>
-        <p class="sec-lede">Here’s everything Barback charges your Mac while it sits in the menu bar. Showing and hiding is one layout change of its own status items, so there’s nothing left running in between.</p>
-        <p class="tab-foot">The only timers are one-shot: the auto-rehide, plus a short dwell and a 0.4-second exit delay if you switch on show-on-hover, which checks the pointer at most 20 times a second. Hiding on app switch just listens for a system notification.</p>
+        <p class="sec-lede">Here’s everything Barback charges your Mac while it sits in the menu bar. On macOS 14–26, showing and hiding is one layout change of its own status items, so there’s nothing left running in between.</p>
+        <p class="tab-foot">On macOS 14–26, the hiding timers are one-shot: the auto-rehide, plus a short dwell and a 0.4-second exit delay if you switch on show-on-hover, which checks the pointer at most 20 times a second. Hiding on app switch just listens for a system notification. These hiding behaviors are unavailable for now on macOS 27 and later.</p>
       </header>
 
       <div class="receipt-wrap" id="receipt">
@@ -221,7 +223,7 @@
 
       <div class="board reveal">
         <div class="board-col">
-          <h3 class="board-h">Signatures</h3>
+          <h3 class="board-h">Signatures · macOS 14–26</h3>
           <ul class="dishes">
             <li>
               <p class="dish"><span class="dish-name">Hidden section</span><span class="dish-dots" aria-hidden="true"></span><span class="dish-price">⌘-drag</span></p>
@@ -279,11 +281,11 @@
           <ul class="dishes">
             <li>
               <p class="dish"><span class="dish-name">Appearance</span><span class="dish-dots" aria-hidden="true"></span><span class="dish-price">5 styles</span></p>
-              <p class="dish-desc">Five one-click styles (Classic, Minimal, Cocktail, Eye, Arrows) with a live preview, or mix your own: nine toggle icons in four weights, six separator styles, an accent tint while hidden icons show, and up to three extra dividers. Only Barback’s own items change.</p>
+              <p class="dish-desc">Five one-click styles (Classic, Minimal, Cocktail, Eye, Arrows) with a live preview, or mix your own: nine toggle icons in four weights and up to three extra dividers. On macOS 14–26, choose separator styles and an accent tint while hidden icons show too. Only Barback’s own items change.</p>
             </li>
             <li>
               <p class="dish"><span class="dish-name">Automation</span><span class="dish-dots" aria-hidden="true"></span><span class="dish-price">barback://</span></p>
-              <p class="dish-desc">Drive it from Shortcuts, scripts, Raycast, Alfred or a Stream Deck: <code>open -g barback://toggle</code>, or swap in <code>show</code>, <code>hide</code>, <code>show-all</code>, <code>toggle-all</code> or <code>settings</code>. URLs can’t change your settings.</p>
+              <p class="dish-desc">On macOS 14–26, drive hiding from Shortcuts, scripts, Raycast, Alfred or a Stream Deck: <code>open -g barback://toggle</code>, or swap in <code>show</code>, <code>hide</code>, <code>show-all</code> or <code>toggle-all</code>. Do not use hiding commands as a macOS 27 workaround; hiding is not supported there for now. Use <code>settings</code> to open Barback’s settings. URLs can’t change your settings.</p>
             </li>
           </ul>
         </div>
@@ -298,7 +300,7 @@
           <img src="assets/menu.webp" width="289" height="163" loading="lazy" decoding="async" alt="Barback’s right-click menu: About Barback, Show Hidden Items (⌃⌥⌘B), Show Always-Hidden Items, Settings… (⌘,) and Quit Barback.">
           <figcaption><span class="no">Plate 2</span> Right-click the chevron</figcaption>
         </figure>
-        <p class="plates-note">Straight from the kitchen: real screenshots, macOS dark mode.</p>
+        <p class="plates-note">Straight from the kitchen: real screenshots of separator hiding on macOS 14–26, in dark mode. These hiding instructions do not apply to macOS 27 and later.</p>
       </div>
     </div>
   </section>
@@ -312,18 +314,18 @@
       <div class="story-text">
         <p class="story-lede">Barback started as a teardown of Bartender 6.6.2. Static analysis only: the binary was read, never run, patched or redistributed. The question was how much machinery a menu bar hider really needs.</p>
         <p>Inside: a two-speed polling loop, seven call sites that capture images of menu bar windows, six event-tap call sites, synthetic ⌘-drag mouse events for rearranging, an Accessibility crawl of menu bar apps through an XPC helper, and network endpoints for updates, licensing and subscriptions.</p>
-        <p>And at the heart of it, the same trick the open-source hiders use: a separator whose length jumps to 10,000 points. Barback keeps that trick and leaves the rest of the machinery out.</p>
-        <p>To be fair, that machinery powers real features: automatic rearranging, the Bartender Bar, search and menu bar styling. If you rely on them, keep using Bartender. If you only want icons out of the way, that’s the one job Barback does.</p>
+        <p>And at the heart of it, the same trick the open-source hiders use: a separator whose length jumps to 10,000 points. On macOS 14–26, Barback keeps that trick and leaves the rest of the machinery out. One-click hiding is not supported on macOS 27 and later for now.</p>
+        <p>To be fair, that machinery powers real features: automatic rearranging, the Bartender Bar, search and menu bar styling. If you rely on them, keep using Bartender. Barback’s separator-based hiding is a simpler option on macOS 14–26, not a fix for macOS 27.</p>
       </div>
       <div class="story-side">
         <div class="ledger-wrap">
           <table class="ledger">
-            <caption>How each one hides your icons</caption>
+            <caption>How each one hides your icons · Barback on macOS 14–26</caption>
             <thead>
               <tr><th scope="col">Job</th><th scope="col">Bartender 6.6.2</th><th scope="col">Barback</th></tr>
             </thead>
             <tbody>
-              <tr><th scope="row">Hide &amp; show</th><td>Separator length trick</td><td>Same trick</td></tr>
+              <tr><th scope="row">Hide &amp; show</th><td>Separator length trick</td><td>Same trick on macOS 14–26; unavailable for now on 27+</td></tr>
               <tr><th scope="row">Background work</th><td>Two-speed polling loop</td><td>None, event-driven</td></tr>
               <tr><th scope="row">Screen capture</th><td>Images of menu bar items</td><td>None</td></tr>
               <tr><th scope="row">Event taps</th><td>Six call sites</td><td>None</td></tr>
@@ -335,7 +337,7 @@
           </table>
         </div>
         <figure class="snippet">
-          <figcaption>The whole trick, more or less</figcaption>
+          <figcaption>The macOS 14–26 trick, more or less</figcaption>
 <pre><code><span class="c-obj">hiddenSeparator</span>.length = <span class="c-num">10_000</span>  <span class="c-com">// hide: push it all off-screen</span>
 <span class="c-obj">hiddenSeparator</span>.length = <span class="c-num">14</span>      <span class="c-com">// show: back to a sliver</span></code></pre>
         </figure>
@@ -353,6 +355,8 @@
         <p class="eyebrow"><span class="no">No. 05</span> Install</p>
         <h2 id="install-title" class="last-call">Last call.</h2>
       </header>
+
+      <p class="tip"><strong>Before downloading v0.5.0 on macOS 27 or later:</strong> one-click hide/reveal is not supported for now. The assessment-mode workaround we investigated also hid unrelated icons. Manually open <strong>System Settings → Menu Bar → Allow in the Menu Bar</strong> to choose apps instead of using Barback’s hiding controls. Configured drop-down panels still work; macOS 14–26 hiding is unchanged.</p>
 
       <div class="install-grid">
         <div class="terminal reveal">
@@ -392,7 +396,8 @@
             <li>macOS 14 Sonoma or later</li>
             <li>Apple silicon or Intel</li>
             <li>About 1.8 MB on disk</li>
-            <li>No permissions required for core hiding</li>
+            <li>One-click hiding on macOS 14–26 only for now</li>
+            <li>No permissions required for hiding on 14–26</li>
           </ul>
         </div>
         <div class="install-col">
@@ -401,7 +406,7 @@
           <p>Opening items in the optional panel requires Accessibility. On the first upgrade from an ad-hoc build, remove the old Barback entry in System Settings → Privacy &amp; Security → Accessibility, then add and enable the new app.</p>
         </div>
       </div>
-      <p class="tip"><strong>First round:</strong> hold <kbd>⌘</kbd> and drag the icons you want gone to the left of the <span class="sym">│</span>, then click the chevron. Need a refresher later? Right-click the chevron and choose Getting Started.</p>
+      <p class="tip"><strong>First round on macOS 14–26:</strong> hold <kbd>⌘</kbd> and drag the icons you want gone to the left of the <span class="sym">│</span>, then click the chevron. On macOS 27 and later, manually open <strong>System Settings → Menu Bar → Allow in the Menu Bar</strong> instead; do not follow the separator setup or hiding steps. Getting Started in v0.5.0 describes separator hiding, not a macOS 27 workaround.</p>
     </div>
   </section>
 
@@ -413,8 +418,12 @@
       </header>
       <div class="faq-list">
         <details>
+          <summary>Does one-click hiding work on macOS 27?</summary>
+          <div class="faq-a"><p>Not in v0.5.0, including on later macOS versions. Hiding is unavailable for now, and the assessment-mode workaround we investigated also hid unrelated icons. Do not rely on Barback’s hiding controls there. Manually open <strong>System Settings → Menu Bar → Allow in the Menu Bar</strong> to choose which apps appear. Configured drop-down panels still work. Hiding on macOS 14–26 is unchanged.</p></div>
+        </details>
+        <details>
           <summary>Does Barback need any permissions?</summary>
-          <div class="faq-a"><p>No. Hiding, showing, the hotkey, hover and URL commands all work without Screen Recording or Accessibility. Accessibility is optional and used for one thing: showing app names in Settings › Items on macOS 26, where many items are hosted by Control Center.</p></div>
+          <div class="faq-a"><p>Screen Recording is never required. On macOS 14–26, hiding, showing, the hotkey, hover and hiding URL commands work without Accessibility. On macOS 27 and later, these hiding behaviors are unavailable for now; opening System Settings needs no additional permission. Accessibility is optional for item identification, opening items from drop-down panels and the opt-in notch overflow bar.</p></div>
         </details>
         <details>
           <summary>Will it rearrange my icons for me?</summary>
@@ -422,7 +431,7 @@
         </details>
         <details>
           <summary>macOS 26 can already turn menu bar items off. Why Barback?</summary>
-          <div class="faq-a"><p>The “Allow in the Menu Bar” switches in System Settings remove items completely. Barback keeps them one click away. They work well together: switch off what you never use, tuck away what you only need sometimes.</p></div>
+          <div class="faq-a"><p>On macOS 26, the “Allow in the Menu Bar” switches in System Settings remove items completely, while Barback’s separator keeps them one click away. They work well together on that version. On macOS 27 and later, Barback’s one-click hide/reveal is unavailable for now; use those system switches instead.</p></div>
         </details>
         <details>
           <summary>Does it phone home?</summary>

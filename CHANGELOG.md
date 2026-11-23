@@ -7,6 +7,10 @@ See [GitHub Releases](https://github.com/MrAshRhodes/barback/releases) for downl
 
 ## [Unreleased]
 
+### Changed
+
+- Document the macOS 27 and later compatibility issue: one-click hide/reveal is not supported for now in v0.5.0. Recommend manually opening System Settings → Menu Bar → Allow in the Menu Bar instead of using hiding controls or the assessment-mode workaround, which also hid unrelated icons. Configured drop-down panels still work, and macOS 14–26 hiding is unchanged. This advisory changes documentation only, not the downloadable app.
+
 ## [0.5.0] - 2026-11-10
 
 ### Added

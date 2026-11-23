@@ -2,7 +2,7 @@
 
 # Barback
 
-**A fast, lightweight, open-source menu bar item hider for macOS.** Tuck the menu bar icons you rarely use behind a chevron, and bring them back with one click or a hotkey. Barback is a minimal alternative to Bartender: it does one job, instantly, without asking for Screen Recording permission (and Accessibility is only ever optional).
+**A fast, lightweight, open-source menu bar app for macOS.** On macOS 14–26, tuck the menu bar icons you rarely use behind a chevron, and bring them back with one click or a hotkey. In v0.5.0, one-click hide/reveal is not supported on macOS 27 and later for now: use the system's Menu Bar settings manually instead. Configured drop-down panels still work. Screen Recording is never required, and Accessibility is optional.
 
 Barback is an independent project, released under the MIT license. It is not affiliated with or endorsed by the makers of Bartender.
 
@@ -16,10 +16,12 @@ Barback is an independent project, released under the MIT license. It is not aff
   <img src="docs/assets/screenshot-menu.png" width="260" alt="Barback's right-click menu: About Barback, Show Hidden Items (⌃⌥⌘B), Show Always-Hidden Items, Settings… (⌘,), Quit Barback">
 </p>
 
+These screenshots show separator-based hiding on macOS 14–26, not a workaround for macOS 27 and later.
+
 ## Why Barback
 
-- **Fast.** Showing and hiding is a single layout change of Barback's own status items: no screen capturing, no animation polling, no background loops. It's instant, and idle CPU stays at ~0%.
-- **No special permissions.** Hiding, showing, the hotkey and hover never need Screen Recording or Accessibility access. The global hotkey uses the Carbon hotkey API, and the item list reads window metadata only. Accessibility is optional and used for three things: showing app names in the Settings › Items list on macOS 26, opening a hidden item from the drop-down panel if you choose it, and the opt-in notch overflow bar (see below). Screen Recording is never used.
+- **Fast.** On macOS 14–26, showing and hiding is a single layout change of Barback's own status items: no screen capturing, no animation polling, no background loops. It's instant, and idle CPU stays at ~0%.
+- **No special permissions for hiding on macOS 14–26.** Hiding, showing, the hotkey and hover need no Screen Recording or Accessibility access. The global hotkey uses the Carbon hotkey API, and the item list reads window metadata only. Accessibility is optional and used for three things: showing app names in the Settings › Items list on macOS 26, opening a hidden item from the drop-down panel if you choose it, and the opt-in notch overflow bar (see below). Screen Recording is never used.
 - **No telemetry.** No analytics or system profiling. Update checks are off by default; Barback contacts GitHub only when you check manually or choose a schedule.
 - **Small and auditable.** One SwiftPM package with [Sparkle](https://sparkle-project.org/) for verified updates, MIT-licensed.
 - **Feels native.** Built to the macOS Human Interface Guidelines (see [Design](#design)).
@@ -31,6 +33,8 @@ brew install --cask mrashrhodes/tap/barback
 ```
 
 Requires macOS 14 Sonoma or later (Apple silicon or Intel).
+
+**macOS 27 and later — known issue in v0.5.0:** one-click hide/reveal is unavailable for now. An assessment-mode workaround we investigated also hid unrelated menu bar icons, so it is not a safe workaround. Do not rely on Barback's hiding controls there. Manually open **System Settings → Menu Bar → Allow in the Menu Bar** to choose which apps appear. Configured drop-down panels still work, with Accessibility required to open an item's menu. Hiding on macOS 14–26 is unchanged. This advisory does not add a new in-app Settings button or change the v0.5.0 binary.
 
 Or download `Barback-<version>.zip` and `Barback-<version>.zip.sha256` from [Releases](https://github.com/MrAshRhodes/barback/releases) into the same folder and verify the download first:
 
@@ -57,7 +61,7 @@ Versions released before this updater must be replaced manually once using the d
 
 ## Usage
 
-Barback adds a **chevron** to your menu bar and a thin **separator** to its left.
+On macOS 14–26, Barback adds a **chevron** to your menu bar and a thin **separator** to its left. The hiding instructions below apply to those versions. On macOS 27 and later, manually use the system Menu Bar settings described above; do not follow the separator setup or hiding steps.
 
 1. **Choose what to hide.** Hold **⌘ Command** and drag any menu bar item to the **left of the separator**. macOS remembers the positions.
 2. **Show or hide.** Click the chevron, or press **⌃⌥⌘B** from anywhere. Items left of the separator slide out of view or back in.
@@ -68,11 +72,13 @@ Barback adds a **chevron** to your menu bar and a thin **separator** to its left
 
 The first time Barback starts, a short tip under the chevron explains the basics; open it again with **Getting Started** in the menu.
 
-Hidden items re-hide automatically after 10 seconds (configurable, or never), but not while the pointer is over the menu bar or a menu is open. Optionally, Barback can also reveal hidden items when the pointer rests on the right-hand (status) side of the menu bar; items revealed this way hide again 0.4 seconds after the pointer leaves the menu bar. You can also have them hide as soon as you switch to another app.
+On macOS 14–26, hidden items re-hide automatically after 10 seconds (configurable, or never), but not while the pointer is over the menu bar or a menu is open. Optionally, Barback can also reveal hidden items when the pointer rests on the right-hand (status) side of the menu bar; items revealed this way hide again 0.4 seconds after the pointer leaves the menu bar. You can also have them hide as soon as you switch to another app.
 
 **Settings**
 
-- **General**: launch at login, auto-rehide delay, show on hover, hide when switching apps, always-hidden section, global hotkey, Export…/Import… of your settings (see below), and update checks.
+Hiding-related settings and reveal steps below apply to macOS 14–26, not macOS 27 and later.
+
+- **General**: launch at login, global hotkey, Export…/Import… of your settings (see below), and update checks. Hiding controls (auto-rehide, hover, app switching and always-hidden section) apply to macOS 14–26; they are not a supported workaround on macOS 27 and later.
 - **Appearance**: a live preview plus styles (Classic, Minimal, Cocktail, Eye, Arrows), the toggle icon and its weight, an optional accent tint while hidden items are showing, separator styles for each section, and extra dividers. These change only Barback's own items. An invisible separator still leaves a narrow gap you can ⌘-drag.
 - **Items**: a read-only list of every menu bar item, the process that owns its window, its section and whether it is currently on screen. It is scanned only when you open the tab or click Refresh (⌘R), off the main thread. On a Mac with a notch, items that would sit behind the notch are flagged so you can hide something else to make room, and once the strip is revealed and the list refreshed, a warning counts the observed items that do not fit beside the notch on each notched display (it appears here, in Barback's tooltip and right-click menu, and is announced to VoiceOver). The **Menu Bar Tools** buttons open the space planner, missing-item doctor and usage review (see below). On macOS 26 Tahoe, Control Center hosts most items' windows, so their source app can't be read from window metadata and they're listed as *Unidentified Item*; if you choose to allow Accessibility access, Barback matches them to app names. Identifiable items also get a shortcut recorder and a **Copy Link** button (see *Item shortcuts and links* below); an **Item Shortcuts** list shows every saved shortcut, including ones for items that aren't in the menu bar right now.
 - **Panel**: what clicking Barback does (show the items in the menu bar, the default, or open your panels), and a complete editor for up to 12 panels: select their items, rename, choose an icon and list/grid layout, and reorder panels or their items.
@@ -83,7 +89,7 @@ Hidden items re-hide automatically after 10 seconds (configurable, or never), bu
 
 ### Drop-down panel (optional)
 
-With **Click Barback to** set to *Open my panels* (Settings › Panel; the default is still to show the items in the menu bar), a normal left-click on Barback opens your panels directly beneath it, like the ones in Control Center. The same click works even when menu bar items are already revealed. The global hotkey follows the click action; Option-click still reveals everything in the menu bar, including always-hidden items.
+With **Click Barback to** set to *Open my panels* (Settings › Panel), a normal left-click on Barback opens your panels directly beneath it, like the ones in Control Center. This still works on macOS 27 and later. The global hotkey follows the click action. On macOS 14–26, the default click action shows items in the menu bar and Option-click reveals everything, including always-hidden items; those hiding actions are unavailable for now on macOS 27 and later.
 
 - **Configure first.** Click **Add Panel** in Settings › Panel, enter a name, select a symbol and layout, then use **Add Items** to choose what it contains. Use the arrows to order panels and their items. Both list and grid layouts show item names. The gear and panel edit buttons take you back to Settings.
 - **Only your selections.** There is no automatic *Other* box. Identifiable items from any section can be selected; always-hidden items are available when that section is enabled. Each item belongs to one panel. Removing a panel or selection does not move or hide its original menu bar icon. Existing saved groups are kept as panels.
@@ -95,6 +101,8 @@ With **Click Barback to** set to *Open my panels* (Settings › Panel; the defau
 ### Context profiles (optional)
 
 Settings › Profiles lets you save up to 24 named profiles. A profile sets whether Barback's hidden sections are hidden, shown, or all shown, and can leave chosen items out of your panels. It never moves, hides or reorders individual icons in the physical menu bar: arrange those yourself with ⌘-drag. Your panel configuration is kept intact, and excluded items still open with their shortcuts and links.
+
+Section visibility applies only on macOS 14–26. On macOS 27 and later, configured panel filtering is still available, but profile visibility rules are not a supported hiding workaround.
 
 - **Manual.** Pick a profile from **Active profile**. It stays active until the next display change or switch to another app, then the rules decide again.
 - **Automatic.** Turn on *Switch automatically* and add a frontmost-app bundle identifier (such as `com.apple.Keynote`), a display condition (built-in only, external connected, external only) and/or an exact display count. All conditions of a profile must match. Rules that name an app win over display-only rules; among equals, the profile higher in the list wins. With no match, Barback returns to the **Base section visibility**.
@@ -139,6 +147,8 @@ Notch-fit warnings count only observed, drawn items on each notched display. Rev
 
 Barback handles `barback://` URLs, so Shortcuts (*Open URLs*), scripts, Raycast, Alfred or a Stream Deck can drive it. Use `open -g` so the current app keeps focus:
 
+The hiding commands below apply to macOS 14–26. Do not use them as a macOS 27 workaround; one-click hide/reveal is unavailable for now on macOS 27 and later. `barback://settings` still opens Barback's settings.
+
 ```sh
 open -g barback://toggle      # show or hide hidden items
 open -g barback://show        # show hidden items
@@ -166,7 +176,7 @@ open -g "barback://open?name=Wi-Fi"                           # by app or item n
 
 ## How it works
 
-Barback uses the same well-known technique as Hidden Bar, Dozer and Ice: it owns ordinary `NSStatusItem`s. To hide, it sets the separator's length to a very large value, which pushes every item to its left off the edge of the screen; to show, it collapses the separator back to its normal width. Positions persist through `autosaveName`, so macOS keeps your arrangement across launches. Nothing is captured, moved by synthetic events or polled.
+On macOS 14–26, Barback uses the same well-known technique as Hidden Bar, Dozer and Ice: it owns ordinary `NSStatusItem`s. To hide, it sets the separator's length to a very large value, which pushes every item to its left off the edge of the screen; to show, it collapses the separator back to its normal width. Positions persist through `autosaveName`, so macOS keeps your arrangement across launches. Nothing is captured, moved by synthetic events or polled. This technique is not supported on macOS 27 and later for now; the manual Menu Bar settings guidance above is not a new hiding backend.
 
 ## Design
 
@@ -180,12 +190,12 @@ Barback follows the macOS Human Interface Guidelines:
 
 ## Barback vs Bartender 6
 
-Barback was inspired by studying how Bartender behaves. It is deliberately much smaller in scope. A neutral summary, as of Bartender 6:
+Barback was inspired by studying how Bartender behaves. It is deliberately much smaller in scope. A neutral summary, as of Bartender 6. Barback's hiding, auto-rehide, separator and section-visibility features below apply to macOS 14–26 only; one-click hide/reveal is unavailable for now on macOS 27 and later, while configured panels still work:
 
 | | Barback | Bartender 6 |
 | --- | --- | --- |
 | Price / license | Free, open source (MIT) | Paid, proprietary (free trial) |
-| Hide/show menu bar items | ✅ chevron, hotkey, optional hover | ✅ plus many more triggers |
+| Hide/show menu bar items | ✅ on macOS 14–26; unavailable for now on 27+ | ✅ plus many more triggers |
 | Always-hidden section | ✅ | ✅ |
 | Auto-rehide | ✅ | ✅ |
 | Rearrange items without ⌘-drag | ❌ (use ⌘-drag) | ✅ |
@@ -197,19 +207,19 @@ Barback was inspired by studying how Bartender behaves. It is deliberately much 
 | Triggers, menu bar styling | ❌ | ✅ |
 | Screen Recording permission | Not needed | Requested for its item images and layout features |
 | Accessibility permission | Optional (app names in the Items list, opening items from the drop-down panel or the notch overflow bar) | Requested to move and click items |
-| How hiding works | Expands its own separator status item | The same separator technique, plus automatic rearranging of other apps' items |
+| How hiding works | Expands its own separator on macOS 14–26; not supported for now on 27+ | The same separator technique, plus automatic rearranging of other apps' items |
 | Background activity when idle | Event-driven; update checks only if scheduled | Varies with enabled features |
 | Minimum macOS | 14 Sonoma | See vendor's site |
 
-If you rely on Bartender's advanced features, keep using it; if you only want a fast, permission-free hider, Barback is for you.
+If you rely on Bartender's advanced features, keep using it; if you only want a fast, permission-free hider on macOS 14–26, Barback is for you.
 
 ### How it compares to Bartender: what we learned
 
 Before writing Barback we studied Bartender 6 (6.6.2 on macOS 26) from the outside: its public documentation and release notes, open-source peers (Hidden Bar, Ice, Dozer), and a static look at the installed app's bundle, linked frameworks and imported APIs. In summary:
 
-- **Hiding itself is cheap.** Bartender hides items the same way Hidden Bar, Ice and Barback do: by widening one of its own separator status items. That needs no permission and no background work, so Barback copies it.
+- **Hiding itself is cheap on macOS 14–26.** Bartender hides items the same way Hidden Bar, Ice and Barback do on those versions: by widening one of its own separator status items. That needs no permission and no background work, so Barback uses it there.
 - **The heavy parts are the extras.** Automatic rearranging works by posting synthetic ⌘-drag mouse events while briefly intercepting the user's clicks; the Bartender Bar, search and item identification on Tahoe rely on capturing images of menu bar items (Screen Recording); app names come from Accessibility queries to every menu-bar app; and optional menu bar styling redraws on a timer. Bartender's own support pages and release notes acknowledge mouse movement, CPU and WindowServer load from these paths, and many releases tune them.
-- **What Barback does differently.** Hiding is event-driven: one-shot timers handle auto-rehide, hover dwell and the 0.4 s hover exit delay, with no polling loops, screen capture, event taps, synthetic events or private APIs. You arrange items yourself with ⌘-drag, which macOS remembers. The optional Sparkle updater is separate from hiding: its network checks start off, and its installer helpers run only when updating.
+- **What Barback does differently.** On macOS 14–26, hiding is event-driven: one-shot timers handle auto-rehide, hover dwell and the 0.4 s hover exit delay, with no polling loops, screen capture, event taps, synthetic events or private APIs. Hiding is not supported on macOS 27 and later for now. You arrange items yourself with ⌘-drag, which macOS remembers. The optional Sparkle updater is separate from hiding: its network checks start off, and its installer helpers run only when updating.
 - **What Barback leaves out** on purpose: automatic arranging, the secondary bar, image-based search (Barback's Quick Search only matches the names of items you put in a panel), triggers, spacing changes, menu bar styling (Barback only restyles its own icons) and widgets. Context profiles only change Barback's own sections and panel membership, never other apps' icons. These all need the permissions and machinery above.
 - **macOS 26 caveat.** On Tahoe, Control Center owns the windows of most menu bar items, so any tool reading window metadata sees "Control Center" rather than the real app. Bartender works around this with image hashing and an Accessibility helper; Barback labels such items honestly and only uses Accessibility if you opt in.
 
